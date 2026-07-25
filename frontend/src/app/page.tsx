@@ -164,7 +164,7 @@ export default function HomePage() {
     }
 
     // Show intro ONLY on the very first visit ever
-    const introEverShown = localStorage.getItem("qmeet_intro_ever_shown")
+    const introEverShown = sessionStorage.getItem("qmeet_intro_shown")
     if (!introEverShown) {
       setShowIntro(true)
     }
@@ -178,7 +178,7 @@ export default function HomePage() {
   }, [])
 
   const handleIntroComplete = () => {
-    localStorage.setItem("qmeet_intro_ever_shown", "true")
+    sessionStorage.setItem("qmeet_intro_shown", "true")
     setShowIntro(false)
   }
 
