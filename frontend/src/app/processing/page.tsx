@@ -22,13 +22,13 @@ export default function ProcessingPage() {
 
   useEffect(() => {
     const items = [
-      "Mike Chen → Technical architecture document · Due Wednesday",
-      "Sarah Kim → UI designs for payment flow · 3 days after Mike",
-      "Priya Sharma → Marketing campaign strategy · Due Monday",
-      "John Doe → Budget approval · Within 24 hours",
-      "Mike Chen → Load testing coordination · Week of Sep 20",
-      "Sarah Kim → Design review meeting invite · Today EOD",
-      "All Team → Project status form · Tomorrow EOD"
+      "Mike Chen ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ Technical architecture document Ãƒâ€šÃ‚Â· Due Wednesday",
+      "Sarah Kim ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ UI designs for payment flow Ãƒâ€šÃ‚Â· 3 days after Mike",
+      "Priya Sharma ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ Marketing campaign strategy Ãƒâ€šÃ‚Â· Due Monday",
+      "John Doe ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ Budget approval Ãƒâ€šÃ‚Â· Within 24 hours",
+      "Mike Chen ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ Load testing coordination Ãƒâ€šÃ‚Â· Week of Sep 20",
+      "Sarah Kim ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ Design review meeting invite Ãƒâ€šÃ‚Â· Today EOD",
+      "All Team ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ Project status form Ãƒâ€šÃ‚Â· Tomorrow EOD"
     ]
 
     setTimeout(() => {
@@ -65,7 +65,7 @@ export default function ProcessingPage() {
         setTimeout(() => {
           try {
             const data = JSON.parse(result)
-            if (data.meeting_id) router.push("/dashboard/" + data.meeting_id)
+            if (data.meeting_id) router.push("/app/meetings/" + data.meeting_id)
           } catch (e) {}
         }, 1800)
       }
@@ -96,7 +96,7 @@ export default function ProcessingPage() {
           <div className="flex items-center gap-2">
             <div className={"w-2 h-2 rounded-full " + (allDone ? "bg-green-500" : "bg-blue-500 animate-pulse")}></div>
             <span className="text-[13px] text-gray-600 font-medium">
-              {allDone ? "Complete — opening dashboard" : "Analyzing meeting"}
+              {allDone ? "Complete ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â opening dashboard" : "Analyzing meeting"}
             </span>
           </div>
         </div>
@@ -156,7 +156,7 @@ export default function ProcessingPage() {
                          "text-gray-500")}>
                         {agent.name}
                       </h3>
-                      <span className="text-[10px] font-mono text-gray-400 font-semibold">· {agent.tag}</span>
+                      <span className="text-[10px] font-mono text-gray-400 font-semibold">Ãƒâ€šÃ‚Â· {agent.tag}</span>
                     </div>
                     <p className={"text-xs " + (status === "waiting" ? "text-gray-400" : "text-gray-600")}>
                       {status === "processing" ? agent.detail : agent.description}

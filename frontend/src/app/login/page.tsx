@@ -15,7 +15,7 @@ export default function LoginPage() {
   // If already logged in, redirect to analytics
   useEffect(() => {
     const user = localStorage.getItem("qmeet_user")
-    if (user) router.push("/analytics")
+    if (user) router.push("/app")
   }, [router])
 
   const handleLogin = (e) => {
@@ -34,7 +34,7 @@ export default function LoginPage() {
         loginTime: new Date().toISOString()
       }))
       // Redirect to analytics dashboard after login
-      router.push("/analytics")
+      router.push("/app")
     }, 1000)
   }
 
@@ -48,7 +48,7 @@ export default function LoginPage() {
         loginMethod: provider,
         loginTime: new Date().toISOString()
       }))
-      router.push("/analytics")
+      router.push("/app")
     }, 800)
   }
 

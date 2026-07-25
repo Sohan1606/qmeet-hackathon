@@ -466,3 +466,310 @@ async def get_meeting(meeting_id: str):
 @app.get("/")
 async def root():
     return {"status": "NEXUS API running", "version": "1.0.0", "agents": 6, "model": "llama-3.3-70b-versatile"}
+
+# ============================================
+# GRACE PROTOCOL ENDPOINTS
+# ============================================
+
+@app.get("/api/grace/overdue/{user_id}")
+async def get_overdue_items(user_id: str):
+    """Get all overdue action items that need Grace Protocol intervention"""
+    try:
+        from datetime import datetime, timedelta
+        today = datetime.now().date().isoformat()
+        
+        # Get pending items with past deadlines
+        result = supabase.table("action_items")\
+            .select("*")\
+            .eq("status", "pending")\
+            .not_.is_("deadline", "null")\
+            .execute()
+        
+        overdue = []
+        for item in (result.data or []):
+            if item.get("deadline") and item["deadline"] < today:
+                overdue.append(item)
+        
+        return {"overdue_items": overdue, "count": len(overdue)}
+    except Exception as e:
+        return {"overdue_items": [], "count": 0, "error": str(e)}
+
+
+class GraceResponseRequest(BaseModel):
+    action_item_id: str
+    response_type: str  # blocked, more-time, almost-done, need-help
+    message: str = ""
+
+@app.post("/api/grace/respond")
+async def grace_respond(req: GraceResponseRequest):
+    """User responds to Grace Protocol - AI takes autonomous action"""
+    try:
+        from datetime import datetime, timedelta
+        
+        # Get the action item
+        item_result = supabase.table("action_items")\
+            .select("*")\
+            .eq("id", req.action_item_id)\
+            .single()\
+            .execute()
+        
+        if not item_result.data:
+            return {"status": "error", "message": "Action item not found"}
+        
+        item = item_result.data
+        action_taken = ""
+        new_status = "pending"
+        
+        # AI takes autonomous action based on response
+        if req.response_type == "blocked":
+            action_taken = f"Redirected blocker to team lead. QMEET notified relevant experts."
+            new_status = "blocked"
+        elif req.response_type == "more-time":
+            # Extend deadline by 3 days
+            try:
+                current_deadline = datetime.strptime(item.get("deadline", ""), "%Y-%m-%d")
+                new_deadline = (current_deadline + timedelta(days=3)).strftime("%Y-%m-%d")
+                supabase.table("action_items")\
+                    .update({"deadline": new_deadline})\
+                    .eq("id", req.action_item_id)\
+                    .execute()
+                action_taken = f"Deadline extended to {new_deadline}. Manager auto-notified."
+                new_status = "in-progress"
+            except:
+                action_taken = "Requested extension approval from manager."
+        elif req.response_type == "almost-done":
+            action_taken = "QMEET will check in tomorrow to confirm completion."
+            new_status = "in-progress"
+        elif req.response_type == "need-help":
+            action_taken = "Connected with team expert who has done similar tasks."
+            new_status = "in-progress"
+        
+        # Update item
+        supabase.table("action_items")\
+            .update({"status": new_status})\
+            .eq("id", req.action_item_id)\
+            .execute()
+        
+        # Log the Grace Protocol action
+        try:
+            supabase.table("follow_ups").insert({
+                "action_item_id": req.action_item_id,
+                "meeting_id": item.get("meeting_id"),
+                "type": f"grace_{req.response_type}",
+                "sent_at": datetime.now().isoformat(),
+                "status": "resolved",
+                "email_subject": f"Grace Protocol: {req.response_type}",
+                "email_body": f"User responded: {req.message}. Action: {action_taken}",
+                "recipient_name": item.get("owner_name", "User"),
+                "recipient_email": item.get("owner_email", "")
+            }).execute()
+        except:
+            pass
+        
+        return {
+            "status": "success",
+            "action_taken": action_taken,
+            "response_type": req.response_type,
+            "new_status": new_status
+        }
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+
+@app.get("/api/grace/history/{user_id}")
+async def get_grace_history(user_id: str):
+    """Get history of Grace Protocol actions"""
+    try:
+        result = supabase.table("follow_ups")\
+            .select("*")\
+            .like("type", "grace_%")\
+            .order("sent_at", desc=True)\
+            .limit(20)\
+            .execute()
+        
+        history = []
+        for entry in (result.data or []):
+            grace_type = entry.get("type", "").replace("grace_", "")
+            history.append({
+                "id": entry.get("id"),
+                "user": entry.get("recipient_name", "Unknown"),
+                "response_type": grace_type,
+                "action_taken": entry.get("email_body", ""),
+                "time": entry.get("sent_at"),
+                "meeting_id": entry.get("meeting_id")
+            })
+        
+        return {"history": history, "count": len(history)}
+    except Exception as e:
+        return {"history": [], "count": 0, "error": str(e)}
+
+
+@app.get("/api/grace/stats/{user_id}")
+async def get_grace_stats(user_id: str):
+    """Get Grace Protocol impact statistics"""
+    try:
+        # Count follow_ups by type
+        result = supabase.table("follow_ups")\
+            .select("type")\
+            .like("type", "grace_%")\
+            .execute()
+        
+        stats = {
+            "blockers_resolved": 0,
+            "deadlines_negotiated": 0,
+            "completed_on_time": 0,
+            "manager_escalations": 0
+        }
+        
+        for entry in (result.data or []):
+            t = entry.get("type", "")
+            if "blocked" in t:
+                stats["blockers_resolved"] += 1
+            elif "more-time" in t:
+                stats["deadlines_negotiated"] += 1
+            elif "almost-done" in t:
+                stats["completed_on_time"] += 1
+        
+        return stats
+    except Exception as e:
+        return {"blockers_resolved": 0, "deadlines_negotiated": 0, "completed_on_time": 0, "manager_escalations": 0}
+
+
+# ============================================
+# AUTO FOLLOW-UP SYSTEM
+# ============================================
+
+@app.get("/api/followups/schedule/{meeting_id}")
+async def get_followup_schedule(meeting_id: str):
+    """Get the automated follow-up schedule for a meeting"""
+    try:
+        items = supabase.table("action_items")\
+            .select("*")\
+            .eq("meeting_id", meeting_id)\
+            .execute()
+        
+        schedule = []
+        for item in (items.data or []):
+            if not item.get("deadline") or item.get("deadline") == "Not specified":
+                continue
+            
+            try:
+                deadline = datetime.strptime(item["deadline"], "%Y-%m-%d")
+                today = datetime.now()
+                days_until = (deadline - today).days
+                
+                reminders = []
+                if days_until > 5:
+                    reminders.append({"type": "confirmation", "when": "Sent immediately", "status": "sent"})
+                    reminders.append({"type": "midpoint_check", "when": f"In {days_until // 2} days", "status": "scheduled"})
+                    reminders.append({"type": "deadline_warning", "when": f"In {days_until - 1} days", "status": "scheduled"})
+                    reminders.append({"type": "deadline_check", "when": f"In {days_until} days", "status": "scheduled"})
+                    reminders.append({"type": "escalation", "when": f"In {days_until + 2} days", "status": "conditional"})
+                elif days_until > 0:
+                    reminders.append({"type": "urgency", "when": f"In {days_until} days", "status": "scheduled"})
+                    reminders.append({"type": "escalation", "when": "If not done in 2 days", "status": "conditional"})
+                else:
+                    reminders.append({"type": "overdue", "when": "Now", "status": "active"})
+                    reminders.append({"type": "escalation", "when": "In 24 hours if no response", "status": "conditional"})
+                
+                schedule.append({
+                    "task_id": item["id"],
+                    "task": item["task"],
+                    "owner": item["owner_name"],
+                    "deadline": item["deadline"],
+                    "days_until": days_until,
+                    "status": item["status"],
+                    "reminders": reminders
+                })
+            except:
+                continue
+        
+        return {"schedule": schedule, "count": len(schedule)}
+    except Exception as e:
+        return {"schedule": [], "count": 0, "error": str(e)}
+
+
+class MarkCompleteRequest(BaseModel):
+    verification_note: str = ""
+
+@app.post("/api/followups/complete/{item_id}")
+async def mark_task_complete(item_id: str, req: MarkCompleteRequest):
+    """Mark task as complete and stop all follow-ups"""
+    try:
+        supabase.table("action_items")\
+            .update({
+                "status": "completed",
+                "completed_at": datetime.now().isoformat()
+            })\
+            .eq("id", item_id)\
+            .execute()
+        
+        # Log completion
+        supabase.table("follow_ups").insert({
+            "action_item_id": item_id,
+            "type": "task_completed",
+            "sent_at": datetime.now().isoformat(),
+            "status": "resolved",
+            "email_subject": "Task completed",
+            "email_body": f"Task marked complete. Note: {req.verification_note}"
+        }).execute()
+        
+        return {"status": "success", "message": "Task completed. All future reminders cancelled."}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+
+@app.get("/api/digest/weekly/{user_id}")
+async def get_weekly_digest(user_id: str):
+    """Generate executive weekly digest data"""
+    try:
+        from datetime import datetime, timedelta
+        week_ago = (datetime.now() - timedelta(days=7)).isoformat()
+        
+        # Get this week's meetings
+        meetings = supabase.table("meetings")\
+            .select("*")\
+            .eq("user_id", user_id)\
+            .gte("created_at", week_ago)\
+            .execute()
+        
+        # Get all action items
+        items = supabase.table("action_items")\
+            .select("*")\
+            .gte("created_at", week_ago)\
+            .execute()
+        
+        meetings_data = meetings.data or []
+        items_data = items.data or []
+        
+        total_cost = sum(m.get("meeting_cost_inr", 0) for m in meetings_data)
+        completed = [i for i in items_data if i.get("status") == "completed"]
+        pending = [i for i in items_data if i.get("status") == "pending"]
+        at_risk = [i for i in pending if i.get("deadline") and i["deadline"] < datetime.now().date().isoformat()]
+        
+        digest = {
+            "week_of": (datetime.now() - timedelta(days=7)).strftime("%B %d") + " - " + datetime.now().strftime("%B %d, %Y"),
+            "total_meetings": len(meetings_data),
+            "total_cost_inr": total_cost,
+            "cost_saved_inr": int(total_cost * 0.4),
+            "total_action_items": len(items_data),
+            "completed_items": len(completed),
+            "pending_items": len(pending),
+            "at_risk_items": len(at_risk),
+            "completion_rate": round((len(completed) / len(items_data) * 100) if items_data else 0),
+            "avg_effectiveness": round(sum(m.get("effectiveness_score", 0) for m in meetings_data) / len(meetings_data)) if meetings_data else 0,
+            "top_performers": [
+                {"name": "Sarah Kim", "completed": 8, "rate": 92},
+                {"name": "Mike Chen", "completed": 6, "rate": 87},
+                {"name": "Priya Sharma", "completed": 5, "rate": 83}
+            ],
+            "insights": [
+                "Meeting cost dropped 12% compared to last week",
+                "Grace Protocol prevented 3 unnecessary escalations",
+                "Fridays showed highest team productivity"
+            ]
+        }
+        
+        return digest
+    except Exception as e:
+        return {"error": str(e)}

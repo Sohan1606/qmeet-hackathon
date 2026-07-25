@@ -45,10 +45,10 @@ function ProfileDropdown({ user }) {
   const router = useRouter()
   const initials = user?.name ? user.name.split(" ").map(n => n[0]).join("").substring(0, 2).toUpperCase() : "U"
   const menuItems = [
-    { icon: BarChart3, label: "Dashboard", href: "/analytics" },
-    { icon: Calendar, label: "Meetings", href: "/meetings" },
-    { icon: Users, label: "Team", href: "/team" },
-    { icon: SettingsIcon, label: "Settings", href: "/settings" }
+    { icon: BarChart3, label: "Dashboard", href: "/app" },
+    { icon: Calendar, label: "Meetings", href: "/app/meetings" },
+    { icon: Users, label: "Team", href: "/app/team" },
+    { icon: SettingsIcon, label: "Settings", href: "/app/settings" }
   ]
   const handleSignOut = () => {
     localStorage.removeItem("qmeet_user")
@@ -138,7 +138,7 @@ function CinematicIntro({ onComplete }) {
           ))}
         </div>
         <div className="text-[11px] text-gray-400 mt-4 font-mono tracking-widest uppercase" style={{ opacity: step >= 4 ? 1 : 0, transition: "opacity 0.6s" }}>
-          6 Agents · Initializing
+          6 Agents Ã‚Â· Initializing
         </div>
       </div>
     </div>
@@ -246,7 +246,7 @@ export default function HomePage() {
             </a>
             <nav className="hidden md:flex items-center gap-6">
               <a href="#features" className="text-[13px] text-gray-600 hover:text-gray-900 font-medium transition-colors">Product</a>
-              <a href="/integrations" className="text-[13px] text-gray-600 hover:text-gray-900 font-medium transition-colors">Integrations</a>
+              <a href="/app/integrations" className="text-[13px] text-gray-600 hover:text-gray-900 font-medium transition-colors">Integrations</a>
               <a href="#pricing" className="text-[13px] text-gray-600 hover:text-gray-900 font-medium transition-colors">Pricing</a>
               <a href="/contact" className="text-[13px] text-gray-600 hover:text-gray-900 font-medium transition-colors">Contact</a>
             </nav>
@@ -254,7 +254,7 @@ export default function HomePage() {
           <div className="flex items-center gap-3">
             {user ? (
               <>
-                <button onClick={() => router.push("/analytics")} className="text-[13px] text-gray-700 hover:text-gray-900 font-medium">Go to Dashboard</button>
+                <button onClick={() => router.push("/app")} className="text-[13px] text-gray-700 hover:text-gray-900 font-medium">Go to Dashboard</button>
                 <ProfileDropdown user={user} />
               </>
             ) : (
@@ -295,7 +295,7 @@ export default function HomePage() {
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-10 animate-fade-in-up" style={{ animationDelay: "0.3s" }}>
               {user ? (
-                <button onClick={() => router.push("/analytics")} className="group flex items-center gap-2 px-6 py-3 bg-[#2383E2] text-white rounded-lg font-semibold text-sm hover:bg-[#1a6dc4] transition-all shadow-lg shadow-[#2383E2]/25 hover:shadow-xl hover:-translate-y-0.5">
+                <button onClick={() => router.push("/app")} className="group flex items-center gap-2 px-6 py-3 bg-[#2383E2] text-white rounded-lg font-semibold text-sm hover:bg-[#1a6dc4] transition-all shadow-lg shadow-[#2383E2]/25 hover:shadow-xl hover:-translate-y-0.5">
                   Go to Dashboard
                   <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5" />
                 </button>
@@ -438,7 +438,7 @@ export default function HomePage() {
               <div key={i} className="p-6 bg-white rounded-xl border border-gray-200 hover-lift">
                 <div className="text-3xl font-bold text-gray-900 mb-2">{s.value}</div>
                 <div className="text-sm text-gray-600 mb-2">{s.label}</div>
-                <div className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider">— {s.source}</div>
+                <div className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider">Ã¢â‚¬â€ {s.source}</div>
               </div>
             ))}
           </div>
@@ -482,7 +482,7 @@ export default function HomePage() {
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-10">
             <span className="text-[11px] font-semibold text-[#2383E2] uppercase tracking-widest">Try QMEET Now</span>
-            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mt-3 mb-3">Live demo · Free · No signup</h2>
+            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mt-3 mb-3">Live demo Ã‚Â· Free Ã‚Â· No signup</h2>
             <p className="text-lg text-gray-600">Feed us a meeting. Watch 6 agents work in under 30 seconds.</p>
           </div>
 
@@ -508,7 +508,7 @@ export default function HomePage() {
                   <div className="mb-4 flex items-center gap-2">
                     <Check className="w-4 h-4 text-green-600" />
                     <span className="text-sm font-semibold text-gray-900">Q3 Product Launch Meeting</span>
-                    <span className="text-xs text-gray-500">· 5 participants · 15 min</span>
+                    <span className="text-xs text-gray-500">Ã‚Â· 5 participants Ã‚Â· 15 min</span>
                   </div>
                   <div className="p-4 bg-gray-50 rounded-lg border border-gray-200 mb-4 max-h-48 overflow-y-auto">
                     <p className="text-sm text-gray-700 leading-relaxed font-mono">{DEMO_TRANSCRIPT.substring(0, 500)}...</p>
@@ -537,7 +537,7 @@ export default function HomePage() {
                   <input type="file" accept="audio/*,video/*" className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" onChange={(e) => { const file = e.target.files[0]; if (file) processAudio(file) }} />
                   <Upload className="w-10 h-10 mx-auto text-[#2383E2] mb-3" />
                   <p className="text-gray-900 font-semibold mb-1">Drop your meeting recording here</p>
-                  <p className="text-sm text-gray-500">MP3, WAV, M4A, MP4 — up to 25MB</p>
+                  <p className="text-sm text-gray-500">MP3, WAV, M4A, MP4 Ã¢â‚¬â€ up to 25MB</p>
                 </div>
               )}
             </div>
@@ -589,7 +589,7 @@ export default function HomePage() {
         <div className="max-w-3xl mx-auto">
           <h2 className="text-3xl md:text-5xl font-bold mb-4">Stop losing action items.</h2>
           <p className="text-lg opacity-90 mb-8">Join 1,247 teams using QMEET to make sure every meeting delivers results.</p>
-          <button onClick={() => user ? router.push("/analytics") : router.push("/signup")} className="inline-flex items-center gap-2 px-6 py-3 bg-white text-[#2383E2] rounded-lg font-semibold hover:bg-gray-50 transition-colors shadow-xl hover:scale-105">
+          <button onClick={() => user ? router.push("/app") : router.push("/signup")} className="inline-flex items-center gap-2 px-6 py-3 bg-white text-[#2383E2] rounded-lg font-semibold hover:bg-gray-50 transition-colors shadow-xl hover:scale-105">
             {user ? "Go to Dashboard" : "Sign up free"}
             <ArrowRight className="w-4 h-4" />
           </button>
@@ -613,7 +613,7 @@ export default function HomePage() {
               <h4 className="text-xs font-bold text-gray-900 uppercase tracking-wider mb-3">Product</h4>
               <div className="space-y-2 text-sm">
                 <a href="#features" className="block text-gray-600 hover:text-gray-900">Features</a>
-                <a href="/integrations" className="block text-gray-600 hover:text-gray-900">Integrations</a>
+                <a href="/app/integrations" className="block text-gray-600 hover:text-gray-900">Integrations</a>
                 <a href="#pricing" className="block text-gray-600 hover:text-gray-900">Pricing</a>
                 <a href="#demo" className="block text-gray-600 hover:text-gray-900">Live Demo</a>
               </div>
@@ -636,7 +636,7 @@ export default function HomePage() {
             </div>
           </div>
           <div className="pt-6 border-t border-gray-200 flex flex-col md:flex-row items-center justify-between gap-3">
-            <div className="text-xs text-gray-500">© 2026 QMEET · Built for Innova Hack Chapter 1 · Bengaluru, India</div>
+            <div className="text-xs text-gray-500">Ã‚Â© 2026 QMEET Ã‚Â· Built for Innova Hack Chapter 1 Ã‚Â· Bengaluru, India</div>
             <div className="flex items-center gap-4">
               <a href="mailto:support@qmeet.ai" className="text-xs text-gray-500 hover:text-gray-900">support@qmeet.ai</a>
             </div>

@@ -17,7 +17,7 @@ export default function SignupPage() {
 
   useEffect(() => {
     const user = localStorage.getItem("qmeet_user")
-    if (user) router.push("/analytics")
+    if (user) router.push("/app")
   }, [router])
 
   const handleNext = (e) => {
@@ -47,7 +47,7 @@ export default function SignupPage() {
         name, email, company, teamSize,
         signupTime: new Date().toISOString()
       }))
-      router.push("/analytics")
+      router.push("/app")
     }, 1000)
   }
 
@@ -62,7 +62,7 @@ export default function SignupPage() {
         signupMethod: provider,
         signupTime: new Date().toISOString()
       }))
-      router.push("/analytics")
+      router.push("/app")
     }, 800)
   }
 
