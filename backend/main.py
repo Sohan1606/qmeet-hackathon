@@ -52,34 +52,36 @@ async def agent_transcribe(file_path: str) -> dict:
         with open(file_path, "rb") as audio_file:
             transcript = groq_client.audio.transcriptions.create(
                 model="whisper-large-v3",
-                file=audio_file,
-                response_format="verbose_json"
+                file=audio_file
             )
-        segments = []
-        speaker_num = 1
-        prev_end = 0
-        for i, seg in enumerate(transcript.segments):
-            if seg.end - prev_end > 1.5 and i > 0:
-                speaker_num = (speaker_num % 3) + 1
-            prev_end = seg.end
-            segments.append({
-                "start": round(seg.start, 2),
-                "end": round(seg.end, 2),
-                "text": seg.text.strip(),
-                "speaker": f"Speaker {speaker_num}"
-            })
-        print(f"Agent 1 Done: {len(segments)} segments")
+        
+        full_text = ""
+        if hasattr(transcript, 'text'):
+            full_text = transcript.text
+        elif isinstance(transcript, dict):
+            full_text = transcript.get('text', '')
+        else:
+            full_text = str(transcript)
+        
+        print(f"Agent 1 Done: transcript {len(full_text)} chars")
+        
         return {
-            "full_transcript": transcript.text,
-            "segments": segments,
-            "duration_seconds": getattr(transcript, 'duration', 0),
-            "language": getattr(transcript, 'language', 'en'),
+            "full_transcript": full_text,
+            "segments": [],
+            "duration_seconds": 0,
+            "language": "en",
             "status": "success"
         }
     except Exception as e:
         print(f"Agent 1 Error: {e}")
-        return {"full_transcript": "", "segments": [], "duration_seconds": 0, "language": "en", "status": "error", "error": str(e)}
-
+        return {
+            "full_transcript": "",
+            "segments": [],
+            "duration_seconds": 0,
+            "language": "en",
+            "status": "error",
+            "error": str(e)
+        }
 
 async def agent_extract(transcript: str) -> dict:
     print("Agent 2: Extraction started")
@@ -245,15 +247,15 @@ async def agent_communicate(action_items: list, analysis: dict, meeting_title: s
                 priority_color = {"High": "#ef4444", "Medium": "#f59e0b", "Low": "#10b981"}.get(task.get("priority", "Medium"), "#f59e0b")
                 tasks_html += f"""<div style="background:#1e1b2e;border-left:3px solid {priority_color};padding:16px;border-radius:8px;margin-bottom:12px;"><div style="margin-bottom:8px;"><span style="color:#e2e8f0;font-weight:600;font-size:15px;">Task {i}: {task.get('task', '')}</span><span style="color:{priority_color};font-size:12px;background:{priority_color}20;padding:2px 8px;border-radius:12px;margin-left:8px;">{task.get('priority', 'Medium')} Priority</span></div><p style="color:#94a3b8;font-size:13px;margin:4px 0;">Deadline: {task.get('deadline', 'Not specified')}</p><p style="color:#94a3b8;font-size:13px;margin:4px 0;">Done when: {task.get('success_criteria', 'Task completed')}</p></div>"""
 
-            follow_up_html = ''.join([f"<p style='color:#64748b;font-size:13px;margin:4px 0;'>• {fu['type'].replace('_',' ').title()} — {fu['when']}</p>" for fu in follow_up_schedule[:3]])
+            follow_up_html = ''.join([f"<p style='color:#64748b;font-size:13px;margin:4px 0;'>â€¢ {fu['type'].replace('_',' ').title()} â€” {fu['when']}</p>" for fu in follow_up_schedule[:3]])
 
-            email_html = f"""<!DOCTYPE html><html><body style="margin:0;padding:0;background:#0f0f1a;font-family:-apple-system,sans-serif;"><div style="max-width:600px;margin:0 auto;padding:20px;"><div style="background:linear-gradient(135deg,#7c3aed,#3b82f6);padding:28px;border-radius:16px 16px 0 0;text-align:center;"><h1 style="color:white;margin:0;font-size:24px;font-weight:800;">NEXUS</h1><p style="color:rgba(255,255,255,0.7);margin:8px 0 0;">Meeting Follow-up — {meeting_title}</p></div><div style="background:#13111e;padding:28px;border-radius:0 0 16px 16px;border:1px solid rgba(255,255,255,0.05);"><p style="color:#e2e8f0;font-size:15px;margin:0 0 24px;">Hi <strong style="color:#a78bfa;">{owner}</strong>,<br><br>Here are your action items from today's meeting. NEXUS will automatically follow up on each deadline.</p><h3 style="color:#a78bfa;font-size:14px;text-transform:uppercase;letter-spacing:0.1em;margin:0 0 16px;">Your {len(tasks)} Action Item{'s' if len(tasks) > 1 else ''}</h3>{tasks_html}<div style="background:#1a1730;border:1px solid rgba(124,58,237,0.2);padding:16px;border-radius:12px;margin-top:24px;"><h4 style="color:#7c3aed;margin:0 0 12px;font-size:14px;">Automatic Follow-up Schedule</h4>{follow_up_html}<p style="color:#475569;font-size:12px;margin:12px 0 0;">NEXUS escalates to your team lead if deadlines are missed.</p></div><p style="color:#334155;font-size:12px;text-align:center;margin:24px 0 0;">Sent automatically by NEXUS AI</p></div></div></body></html>"""
+            email_html = f"""<!DOCTYPE html><html><body style="margin:0;padding:0;background:#0f0f1a;font-family:-apple-system,sans-serif;"><div style="max-width:600px;margin:0 auto;padding:20px;"><div style="background:linear-gradient(135deg,#7c3aed,#3b82f6);padding:28px;border-radius:16px 16px 0 0;text-align:center;"><h1 style="color:white;margin:0;font-size:24px;font-weight:800;">NEXUS</h1><p style="color:rgba(255,255,255,0.7);margin:8px 0 0;">Meeting Follow-up â€” {meeting_title}</p></div><div style="background:#13111e;padding:28px;border-radius:0 0 16px 16px;border:1px solid rgba(255,255,255,0.05);"><p style="color:#e2e8f0;font-size:15px;margin:0 0 24px;">Hi <strong style="color:#a78bfa;">{owner}</strong>,<br><br>Here are your action items from today's meeting. NEXUS will automatically follow up on each deadline.</p><h3 style="color:#a78bfa;font-size:14px;text-transform:uppercase;letter-spacing:0.1em;margin:0 0 16px;">Your {len(tasks)} Action Item{'s' if len(tasks) > 1 else ''}</h3>{tasks_html}<div style="background:#1a1730;border:1px solid rgba(124,58,237,0.2);padding:16px;border-radius:12px;margin-top:24px;"><h4 style="color:#7c3aed;margin:0 0 12px;font-size:14px;">Automatic Follow-up Schedule</h4>{follow_up_html}<p style="color:#475569;font-size:12px;margin:12px 0 0;">NEXUS escalates to your team lead if deadlines are missed.</p></div><p style="color:#334155;font-size:12px;text-align:center;margin:24px 0 0;">Sent automatically by NEXUS AI</p></div></div></body></html>"""
 
             emails_prepared.append({
                 "owner": owner,
                 "email_html": email_html,
                 "email_text": f"Hi {owner},\n\nYour action items from {meeting_title}:\n" + "\n".join([f"- {t.get('task')} (Deadline: {t.get('deadline')})" for t in tasks]),
-                "subject": f"[{meeting_title}] Your {len(tasks)} action item{'s' if len(tasks) > 1 else ''} — NEXUS",
+                "subject": f"[{meeting_title}] Your {len(tasks)} action item{'s' if len(tasks) > 1 else ''} â€” NEXUS",
                 "tasks_count": len(tasks),
                 "follow_up_schedule": follow_up_schedule
             })
