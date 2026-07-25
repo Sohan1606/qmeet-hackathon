@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { CheckCircle, Clock, AlertTriangle, Send, TrendingUp, Zap, FileText, ChevronRight, Check, MessageSquare, BarChart3, DollarSign, Target, Share2 } from "lucide-react"
+import FollowUpTimeline from "../../../components/FollowUpTimeline"
 import { useRouter } from "next/navigation"
 import axios from "axios"
 
@@ -248,6 +249,8 @@ export default function MeetingDetailsPage({ params }) {
                 </div>
               )}
 
+              <FollowUpTimeline actionItems={actionItems} meetingId={meetingId} />
+              
               {(extraction.decisions_made || []).length > 0 && (
                 <div className="bg-white rounded-lg border border-gray-200 p-5">
                   <h3 className="text-sm font-bold text-gray-900 mb-3">Decisions Made</h3>
