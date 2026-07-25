@@ -4,11 +4,14 @@ import { useEffect, useState } from "react"
 import { useRouter, usePathname } from "next/navigation"
 import { Zap, Home, Calendar, Users, Activity, Settings, LogOut, Plus, MessageSquare, BarChart3, Heart, Bell, Video, Mail } from "lucide-react"
 import ReportBugButton from "../components/ReportBugButton"
+import NewMeetingModal from "../components/NewMeetingModal"
+import ProcessingWidget from "../components/ProcessingWidget"
 
 export default function AppLayout({ children }) {
   const [user, setUser] = useState(null)
   const [checked, setChecked] = useState(false)
   const [notifOpen, setNotifOpen] = useState(false)
+  const [newMeetingOpen, setNewMeetingOpen] = useState(false)
   const router = useRouter()
   const pathname = usePathname()
 
@@ -25,6 +28,7 @@ export default function AppLayout({ children }) {
   const handleSignOut = () => {
     localStorage.removeItem("qmeet_user")
     localStorage.removeItem("qmeet_intro_ever_shown")
+    sessionStorage.removeItem("qmeet_intro_shown")
     router.push("/")
   }
 
@@ -67,12 +71,17 @@ export default function AppLayout({ children }) {
             <span className="text-[10px] px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded font-semibold ml-auto">Pro</span>
           </a>
         </div>
+
         <div className="p-3">
-          <button onClick={() => router.push("/")} className="w-full flex items-center justify-center gap-2 py-2.5 bg-blue-600 text-white rounded-lg text-[13px] font-semibold hover:bg-blue-700 transition-colors shadow-sm">
+          <button 
+            onClick={() => setNewMeetingOpen(true)} 
+            className="w-full flex items-center justify-center gap-2 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg text-[13px] font-semibold hover:opacity-90 transition-all shadow-lg shadow-blue-500/20"
+          >
             <Plus className="w-4 h-4" />
-            Analyze Meeting
+            New Meeting
           </button>
         </div>
+
         <nav className="flex-1 p-2 overflow-y-auto">
           <div className="mb-4">
             <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider px-2 mb-1.5">Workspace</p>
@@ -94,6 +103,7 @@ export default function AppLayout({ children }) {
             ))}
           </div>
         </nav>
+
         <div className="p-2 border-t border-gray-100">
           <div className="flex items-center gap-2 p-1.5 rounded hover:bg-gray-50 group">
             <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-600 to-blue-700 flex items-center justify-center text-white text-xs font-bold">{initials}</div>
@@ -109,6 +119,13 @@ export default function AppLayout({ children }) {
       </aside>
 
       <div className="fixed top-0 right-0 left-56 z-20 h-14 bg-white border-b border-gray-100 flex items-center justify-end gap-2 px-6">
+        <button 
+          onClick={() => setNewMeetingOpen(true)}
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg text-xs font-semibold hover:opacity-90 shadow-sm"
+        >
+          <Plus className="w-3.5 h-3.5" />
+          Analyze Meeting
+        </button>
         <div className="relative">
           <button onClick={() => setNotifOpen(!notifOpen)} className="p-2 hover:bg-gray-100 rounded-lg transition-colors relative">
             <Bell className="w-4 h-4 text-gray-600" />
@@ -134,6 +151,9 @@ export default function AppLayout({ children }) {
       </div>
 
       <div className="flex-1 flex flex-col overflow-hidden ml-56 pt-14">{children}</div>
+      
+      <NewMeetingModal open={newMeetingOpen} onClose={() => setNewMeetingOpen(false)} />
+      <ProcessingWidget />
       <ReportBugButton />
     </div>
   )
