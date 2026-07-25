@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import { useState, useEffect } from "react"
 import { TrendingUp, Clock, DollarSign, Users, Target, Zap, BarChart3, Calendar, ArrowUp, ArrowDown, Award, AlertTriangle, CheckCircle, Activity, Download, Filter } from "lucide-react"
@@ -28,6 +28,8 @@ export default function AnalyticsPage() {
   const avgScore = totalMeetings > 0 ? Math.round(meetings.reduce((sum, m) => sum + (m.effectiveness_score || 0), 0) / totalMeetings) : 82
   const positiveCount = meetings.filter(m => m.sentiment === "positive").length
   const positiveRate = totalMeetings > 0 ? Math.round((positiveCount / totalMeetings) * 100) : 68
+  const neutralRate = Math.max(0, 100 - positiveRate - 8)
+  const tenseRate = 8
 
   const weeklyData = [
     { day: "Mon", meetings: 12, effectiveness: 78, cost: 342000 },
@@ -56,6 +58,12 @@ export default function AnalyticsPage() {
     { name: "Operations", meetings: 5, cost: 170000, color: "bg-teal-600" }
   ]
   const maxCost = Math.max(...departments.map(d => d.cost))
+
+  const RADIUS = 40
+  const CIRC = 2 * Math.PI * RADIUS
+  const posDash = CIRC * (positiveRate / 100)
+  const neuDash = CIRC * (neutralRate / 100)
+  const tenDash = CIRC * (tenseRate / 100)
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
@@ -174,13 +182,13 @@ export default function AnalyticsPage() {
                 </div>
               </div>
             </div>
-            <div className="flex items-end justify-between gap-2 h-48 pt-4">
+            <div className="flex items-end justify-between gap-2 h-56 pt-4">
               {weeklyData.map((d, i) => (
-                <div key={i} className="flex-1 flex flex-col items-center gap-2">
+                <div key={i} className="flex-1 flex flex-col items-center gap-2 h-full">
                   <div className="w-full flex flex-col items-center gap-1 flex-1 justify-end">
-                    <div className="text-[10px] font-semibold text-gray-600">{d.effectiveness}%</div>
-                    <div className="w-full bg-gradient-to-t from-blue-600 to-blue-400 rounded-t hover:opacity-80 transition-opacity relative group" style={{ height: (d.meetings / maxMeetings * 100) + "%" }}>
-                      <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                    <div className="text-[10px] font-semibold text-green-600">{d.effectiveness}%</div>
+                    <div className="w-full bg-gradient-to-t from-blue-600 to-blue-400 rounded-t hover:opacity-80 transition-opacity relative group min-h-[8px]" style={{ height: Math.max(8, (d.meetings / maxMeetings) * 180) + "px" }}>
+                      <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
                         <div>{d.meetings} meetings</div>
                         <div className="text-[9px] opacity-80">Rs {(d.cost / 1000).toFixed(0)}K cost</div>
                       </div>
@@ -196,8 +204,10 @@ export default function AnalyticsPage() {
             <h3 className="text-sm font-bold text-gray-900 mb-4">Sentiment Distribution</h3>
             <div className="relative w-32 h-32 mx-auto mb-4">
               <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
-                <circle cx="50" cy="50" r="40" fill="none" stroke="#F3F4F6" strokeWidth="12" />
-                <circle cx="50" cy="50" r="40" fill="none" stroke="#10B981" strokeWidth="12" strokeDasharray={2 * Math.PI * 40} strokeDashoffset={2 * Math.PI * 40 * (1 - positiveRate / 100)} strokeLinecap="round" />
+                <circle cx="50" cy="50" r={RADIUS} fill="none" stroke="#F3F4F6" strokeWidth="12" />
+                <circle cx="50" cy="50" r={RADIUS} fill="none" stroke="#10B981" strokeWidth="12" strokeDasharray={posDash + " " + CIRC} strokeDashoffset="0" />
+                <circle cx="50" cy="50" r={RADIUS} fill="none" stroke="#3B82F6" strokeWidth="12" strokeDasharray={neuDash + " " + CIRC} strokeDashoffset={-posDash} />
+                <circle cx="50" cy="50" r={RADIUS} fill="none" stroke="#EF4444" strokeWidth="12" strokeDasharray={tenDash + " " + CIRC} strokeDashoffset={-(posDash + neuDash)} />
               </svg>
               <div className="absolute inset-0 flex flex-col items-center justify-center">
                 <span className="text-2xl font-bold text-gray-900">{positiveRate}%</span>
@@ -217,14 +227,14 @@ export default function AnalyticsPage() {
                   <div className="w-2 h-2 rounded-full bg-blue-500"></div>
                   <span className="text-gray-700">Neutral</span>
                 </div>
-                <span className="font-semibold">{100 - positiveRate - 8}%</span>
+                <span className="font-semibold">{neutralRate}%</span>
               </div>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <div className="w-2 h-2 rounded-full bg-red-500"></div>
                   <span className="text-gray-700">Tense</span>
                 </div>
-                <span className="font-semibold">8%</span>
+                <span className="font-semibold">{tenseRate}%</span>
               </div>
             </div>
           </div>
