@@ -1,7 +1,7 @@
-"use client"
+﻿"use client"
 
 import { useState, useEffect } from "react"
-import { CheckCircle, Clock, AlertTriangle, Send, TrendingUp, Zap, FileText, ChevronRight, Check, MessageSquare, BarChart3, DollarSign, Target, Share2 } from "lucide-react"
+import { CheckCircle, Clock, AlertTriangle, Send, TrendingUp, Zap, FileText, ChevronRight, Check, MessageSquare, BarChart3, Target, Share2, Download, Copy, RefreshCw, Inbox } from "lucide-react"
 import FollowUpTimeline from "../../../components/FollowUpTimeline"
 import { useRouter } from "next/navigation"
 import axios from "axios"
@@ -17,6 +17,9 @@ export default function MeetingDetailsPage({ params }) {
   const [emailInput, setEmailInput] = useState({})
   const [meetingId, setMeetingId] = useState("")
   const [shareCopied, setShareCopied] = useState(false)
+  const [transcriptCopied, setTranscriptCopied] = useState(false)
+  const [lastUpdated, setLastUpdated] = useState(null)
+  const [refreshing, setRefreshing] = useState(false)
   const router = useRouter()
 
   useEffect(() => {
@@ -28,30 +31,56 @@ export default function MeetingDetailsPage({ params }) {
   }, [params])
 
   useEffect(() => {
-    const stored = localStorage.getItem("qmeet_result") || localStorage.getItem("nexus_result")
-    if (stored) {
-      try {
-        const data = JSON.parse(stored)
-        setResult(data)
-        const items = (data.extraction?.action_items || []).map((item, i) => ({
-          ...item,
-          id: item.db_id || "item-" + i,
-          status: "pending"
-        }))
-        setActionItems(items)
-        const emailMap = {}
-        items.forEach((item) => {
-          if (item.owner && item.owner !== "Unassigned") {
-            emailMap[item.owner] = item.owner_email || ""
-          }
-        })
-        setEmailInput(emailMap)
-      } catch (e) {}
+    if (!meetingId) return
+    loadMeetingData()
+    const interval = setInterval(() => loadMeetingData(true), 30000)
+    return () => clearInterval(interval)
+  }, [meetingId])
+
+  const loadMeetingData = async (silent = false) => {
+    if (!silent) setRefreshing(true)
+    let data = null
+    try {
+      const res = await axios.get(API_URL + "/api/meetings/" + meetingId)
+      if (res.data) data = res.data
+    } catch (e) {}
+    if (!data) {
+      const stored = localStorage.getItem("qmeet_result") || localStorage.getItem("nexus_result")
+      if (stored) {
+        try { data = JSON.parse(stored) } catch (e) {}
+      }
     }
-  }, [])
+    if (data) {
+      setResult(data)
+      const savedStatuses = JSON.parse(localStorage.getItem("qmeet_item_statuses_" + meetingId) || "{}")
+      const items = (data.extraction?.action_items || []).map((item, i) => {
+        const id = item.db_id || "item-" + i
+        return { ...item, id, status: savedStatuses[id] || item.status || "pending" }
+      })
+      setActionItems(items)
+      const emailMap = {}
+      items.forEach((item) => {
+        if (item.owner && item.owner !== "Unassigned") {
+          emailMap[item.owner] = item.owner_email || ""
+        }
+      })
+      setEmailInput(prev => ({ ...emailMap, ...prev }))
+      setLastUpdated(new Date())
+    }
+    setRefreshing(false)
+  }
 
   const updateItemStatus = async (itemId, newStatus) => {
-    setActionItems(prev => prev.map(item => item.id === itemId ? { ...item, status: newStatus } : item))
+    setActionItems(prev => {
+      const updated = prev.map(item => item.id === itemId ? { ...item, status: newStatus } : item)
+      const statusMap = {}
+      updated.forEach(i => { statusMap[i.id] = i.status })
+      localStorage.setItem("qmeet_item_statuses_" + meetingId, JSON.stringify(statusMap))
+      return updated
+    })
+    try {
+      await axios.post(API_URL + "/api/action-items/" + itemId + "/status", { status: newStatus })
+    } catch (e) {}
   }
 
   const sendAllEmails = async () => {
@@ -75,13 +104,44 @@ export default function MeetingDetailsPage({ params }) {
     }
     setSendingEmails(false)
     setEmailsSent(true)
+    setTimeout(() => setEmailsSent(false), 8000)
   }
 
   const shareLink = () => {
-    const url = window.location.origin + "/shared/" + meetingId
+    const url = window.location.href
     navigator.clipboard.writeText(url)
     setShareCopied(true)
     setTimeout(() => setShareCopied(false), 2500)
+  }
+
+  const copyTranscript = () => {
+    const text = result?.transcription?.full_transcript || ""
+    navigator.clipboard.writeText(text)
+    setTranscriptCopied(true)
+    setTimeout(() => setTranscriptCopied(false), 2500)
+  }
+
+  const downloadTranscript = () => {
+    const text = result?.transcription?.full_transcript || ""
+    const title = (result?.meeting_title || result?.title || "meeting").replace(/[^a-z0-9]/gi, "-").toLowerCase()
+    const blob = new Blob([text], { type: "text/plain;charset=utf-8" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = title + "-transcript.txt"
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
+  const getTimeAgo = () => {
+    if (!lastUpdated) return ""
+    const s = Math.floor((new Date() - lastUpdated) / 1000)
+    if (s < 60) return "just now"
+    const m = Math.floor(s / 60)
+    if (m < 60) return m + " min ago"
+    return Math.floor(m / 60) + "h ago"
   }
 
   if (!result) {
@@ -113,11 +173,17 @@ export default function MeetingDetailsPage({ params }) {
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       
-      <header className="bg-white border-b border-gray-100 h-12 px-5 flex items-center">
+      <header className="bg-white border-b border-gray-100 h-12 px-5 flex items-center justify-between">
         <div className="flex items-center gap-2 text-[13px]">
           <a href="/app/meetings" className="text-gray-500 hover:text-gray-900">Meetings</a>
           <ChevronRight className="w-3 h-3 text-gray-400" />
           <span className="font-medium text-gray-900 truncate max-w-md">{meetingTitle}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          {lastUpdated && <span className="text-[11px] text-gray-500">Updated {getTimeAgo()}</span>}
+          <button onClick={() => loadMeetingData()} disabled={refreshing} className="p-1.5 hover:bg-gray-100 rounded transition-colors disabled:opacity-50" title="Refresh">
+            <RefreshCw className={"w-3.5 h-3.5 text-gray-600 " + (refreshing ? "animate-spin" : "")} />
+          </button>
         </div>
       </header>
 
@@ -138,27 +204,27 @@ export default function MeetingDetailsPage({ params }) {
             <button onClick={shareLink} className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 text-gray-700 rounded-md text-[12px] font-semibold hover:bg-gray-50 transition-all">
               {shareCopied ? (<><Check className="w-3.5 h-3.5 text-green-600" />Link copied!</>) : (<><Share2 className="w-3.5 h-3.5" />Share</>)}
             </button>
-            <button onClick={sendAllEmails} disabled={sendingEmails || emailsSent} className={"flex items-center gap-1.5 px-3.5 py-1.5 rounded-md text-[12px] font-semibold shadow-sm transition-all " + (emailsSent ? "bg-green-50 text-green-700 border border-green-200" : "bg-blue-600 text-white hover:bg-blue-700") + " disabled:opacity-60"}>
-              {sendingEmails ? (<><div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>Sending...</>) : emailsSent ? (<><Check className="w-3.5 h-3.5" />Emails Sent</>) : (<><Send className="w-3.5 h-3.5" />Send Follow-ups ({communication.total_emails || 0})</>)}
+            <button onClick={sendAllEmails} disabled={sendingEmails} className={"flex items-center gap-1.5 px-3.5 py-1.5 rounded-md text-[12px] font-semibold shadow-sm transition-all " + (emailsSent ? "bg-green-50 text-green-700 border border-green-200" : "bg-blue-600 text-white hover:bg-blue-700") + " disabled:opacity-60"}>
+              {sendingEmails ? (<><div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>Sending...</>) : emailsSent ? (<><Check className="w-3.5 h-3.5" />Emails Sent - Resend?</>) : (<><Send className="w-3.5 h-3.5" />Send Follow-ups ({communication.total_emails || 0})</>)}
             </button>
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-6 border-b border-gray-100 bg-white">
+      <div className="grid grid-cols-5 border-b border-gray-100 bg-white">
         <div className="p-4 border-r border-gray-100">
           <div className="flex items-center gap-1.5 mb-1">
             <Target className="w-3 h-3 text-blue-600" />
             <span className="text-[10px] text-gray-500 font-semibold uppercase tracking-wider">Action items</span>
           </div>
-          <div className="text-xl font-bold text-gray-900">{summary.action_items_found || 0}</div>
+          <div className="text-xl font-bold text-gray-900">{summary.action_items_found || actionItems.length || 0}</div>
         </div>
         <div className="p-4 border-r border-gray-100">
           <div className="flex items-center gap-1.5 mb-1">
             <Zap className="w-3 h-3 text-blue-600" />
             <span className="text-[10px] text-gray-500 font-semibold uppercase tracking-wider">Decisions</span>
           </div>
-          <div className="text-xl font-bold text-gray-900">{summary.decisions_made || 0}</div>
+          <div className="text-xl font-bold text-gray-900">{summary.decisions_made || (extraction.decisions_made || []).length || 0}</div>
         </div>
         <div className="p-4 border-r border-gray-100">
           <div className="flex items-center gap-1.5 mb-1">
@@ -174,19 +240,12 @@ export default function MeetingDetailsPage({ params }) {
           </div>
           <div className="text-xl font-bold text-gray-900">{effectiveness.score || 0}/100</div>
         </div>
-        <div className="p-4 border-r border-gray-100">
+        <div className="p-4">
           <div className="flex items-center gap-1.5 mb-1">
             <AlertTriangle className="w-3 h-3 text-orange-500" />
             <span className="text-[10px] text-gray-500 font-semibold uppercase tracking-wider">Risk level</span>
           </div>
           <div className="text-xl font-bold text-gray-900">{riskAssessment.overall_risk || "Medium"}</div>
-        </div>
-        <div className="p-4">
-          <div className="flex items-center gap-1.5 mb-1">
-            <DollarSign className="w-3 h-3 text-pink-600" />
-            <span className="text-[10px] text-gray-500 font-semibold uppercase tracking-wider">Meeting cost</span>
-          </div>
-          <div className="text-xl font-bold text-gray-900">Rs {Math.round((meetingCost.estimated_cost_inr || 0) / 1000)}K</div>
         </div>
       </div>
 
@@ -289,8 +348,8 @@ export default function MeetingDetailsPage({ params }) {
                     <span className={"font-semibold " + (effectiveness.could_have_been_email ? "text-red-600" : "text-green-600")}>{effectiveness.could_have_been_email ? "Yes" : "No"}</span>
                   </div>
                   <div className="flex justify-between pt-2 border-t border-gray-100">
-                    <span className="text-gray-500">Total Cost</span>
-                    <span className="font-semibold text-gray-900">Rs {(meetingCost.estimated_cost_inr || 0).toLocaleString("en-IN")}</span>
+                    <span className="text-gray-500">Duration</span>
+                    <span className="font-semibold text-gray-900">{meetingCost.estimated_duration_minutes || 30} min</span>
                   </div>
                 </div>
               </div>
@@ -332,94 +391,136 @@ export default function MeetingDetailsPage({ params }) {
         )}
 
         {activeTab === "actions" && (
-          <div className="grid grid-cols-4 gap-3">
-            {["pending", "in-progress", "follow-up-sent", "completed"].map(status => {
-              const labels = { "pending": "Pending", "in-progress": "In Progress", "follow-up-sent": "Follow-up Sent", "completed": "Completed" }
-              const colors = { "pending": "bg-yellow-400", "in-progress": "bg-blue-600", "follow-up-sent": "bg-purple-500", "completed": "bg-green-500" }
-              const colItems = actionItems.filter(item => item.status === status)
-              return (
-                <div key={status} className="bg-white rounded-lg border border-gray-200 p-3">
-                  <div className="flex items-center justify-between mb-3 pb-2 border-b border-gray-100">
-                    <div className="flex items-center gap-2">
-                      <div className={"w-1.5 h-1.5 rounded-full " + colors[status]}></div>
-                      <span className="text-xs font-semibold text-gray-900">{labels[status]}</span>
-                    </div>
-                    <span className="text-[10px] font-semibold text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded font-mono">{colItems.length}</span>
-                  </div>
-                  <div className="space-y-2">
-                    {colItems.map(item => (
-                      <div key={item.id} className="p-2.5 rounded border border-gray-100 hover:border-gray-300 group cursor-pointer">
-                        <span className={"inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold mb-2 " + (item.priority === "High" ? "bg-red-100 text-red-700" : item.priority === "Medium" ? "bg-yellow-100 text-yellow-700" : "bg-green-100 text-green-700")}>{item.priority}</span>
-                        <p className="text-xs text-gray-900 font-medium leading-relaxed mb-2">{item.task}</p>
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-1">
-                            <div className="w-4 h-4 rounded-full bg-blue-100 flex items-center justify-center text-[9px] font-semibold text-blue-600">{(item.owner || "U")[0]?.toUpperCase()}</div>
-                            <span className="text-[10px] text-gray-600">{item.owner}</span>
-                          </div>
-                          {item.deadline && item.deadline !== "Not specified" && (
-                            <div className="flex items-center gap-0.5 text-[10px] text-gray-500">
-                              <Clock className="w-2.5 h-2.5" />
-                              {item.deadline}
+          <>
+            {actionItems.length === 0 ? (
+              <div className="bg-white rounded-lg border border-gray-200 p-12 text-center">
+                <Inbox className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                <h3 className="text-sm font-bold text-gray-900 mb-1">No action items yet</h3>
+                <p className="text-xs text-gray-500">This meeting did not produce any trackable action items</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-4 gap-3">
+                {["pending", "in-progress", "follow-up-sent", "completed"].map(status => {
+                  const labels = { "pending": "Pending", "in-progress": "In Progress", "follow-up-sent": "Follow-up Sent", "completed": "Completed" }
+                  const colors = { "pending": "bg-yellow-400", "in-progress": "bg-blue-600", "follow-up-sent": "bg-purple-500", "completed": "bg-green-500" }
+                  const colItems = actionItems.filter(item => item.status === status)
+                  return (
+                    <div key={status} className="bg-white rounded-lg border border-gray-200 p-3">
+                      <div className="flex items-center justify-between mb-3 pb-2 border-b border-gray-100">
+                        <div className="flex items-center gap-2">
+                          <div className={"w-1.5 h-1.5 rounded-full " + colors[status]}></div>
+                          <span className="text-xs font-semibold text-gray-900">{labels[status]}</span>
+                        </div>
+                        <span className="text-[10px] font-semibold text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded font-mono">{colItems.length}</span>
+                      </div>
+                      <div className="space-y-2">
+                        {colItems.map(item => (
+                          <div key={item.id} className="p-2.5 rounded border border-gray-100 hover:border-gray-300 group cursor-pointer">
+                            <span className={"inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold mb-2 " + (item.priority === "High" ? "bg-red-100 text-red-700" : item.priority === "Medium" ? "bg-yellow-100 text-yellow-700" : "bg-green-100 text-green-700")}>{item.priority}</span>
+                            <p className="text-xs text-gray-900 font-medium leading-relaxed mb-2">{item.task}</p>
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-1">
+                                <div className="w-4 h-4 rounded-full bg-blue-100 flex items-center justify-center text-[9px] font-semibold text-blue-600">{(item.owner || "U")[0]?.toUpperCase()}</div>
+                                <span className="text-[10px] text-gray-600">{item.owner}</span>
+                              </div>
+                              {item.deadline && item.deadline !== "Not specified" && (
+                                <div className="flex items-center gap-0.5 text-[10px] text-gray-500">
+                                  <Clock className="w-2.5 h-2.5" />
+                                  {item.deadline}
+                                </div>
+                              )}
                             </div>
-                          )}
-                        </div>
-                        <div className="grid grid-cols-2 gap-1 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                          {item.status !== "in-progress" && item.status !== "completed" && (
-                            <button onClick={() => updateItemStatus(item.id, "in-progress")} className="text-[10px] py-1 rounded bg-blue-50 text-blue-600 hover:bg-blue-100 font-semibold">Start</button>
-                          )}
-                          {item.status !== "completed" && (
-                            <button onClick={() => updateItemStatus(item.id, "completed")} className="text-[10px] py-1 rounded bg-green-50 text-green-700 hover:bg-green-100 font-semibold">Complete</button>
-                          )}
-                        </div>
+                            <div className="grid grid-cols-2 gap-1 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                              {item.status !== "in-progress" && item.status !== "completed" && (
+                                <button onClick={() => updateItemStatus(item.id, "in-progress")} className="text-[10px] py-1 rounded bg-blue-50 text-blue-600 hover:bg-blue-100 font-semibold">Start</button>
+                              )}
+                              {item.status !== "completed" && (
+                                <button onClick={() => updateItemStatus(item.id, "completed")} className="text-[10px] py-1 rounded bg-green-50 text-green-700 hover:bg-green-100 font-semibold">Complete</button>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                        {colItems.length === 0 && (
+                          <div className="p-3 border border-dashed border-gray-200 rounded text-center">
+                            <p className="text-[10px] text-gray-400">No items</p>
+                          </div>
+                        )}
                       </div>
-                    ))}
-                    {colItems.length === 0 && (
-                      <div className="p-3 border border-dashed border-gray-200 rounded text-center">
-                        <p className="text-[10px] text-gray-400">No items</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </>
         )}
 
         {activeTab === "followups" && (
-          <div className="max-w-3xl space-y-3">
-            {(communication.emails_prepared || []).map((email, i) => (
-              <div key={i} className="bg-white rounded-lg border border-gray-200 p-4">
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-600 to-blue-700 flex items-center justify-center text-white font-bold text-sm">{email.owner[0]?.toUpperCase()}</div>
-                    <div>
-                      <h3 className="text-sm font-semibold text-gray-900">{email.owner}</h3>
-                      <p className="text-xs text-gray-500">{email.tasks_count} action items</p>
+          <div className="max-w-3xl">
+            {(communication.emails_prepared || []).length === 0 ? (
+              <div className="bg-white rounded-lg border border-gray-200 p-12 text-center">
+                <Send className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                <h3 className="text-sm font-bold text-gray-900 mb-1">No follow-up emails prepared</h3>
+                <p className="text-xs text-gray-500 mb-4">This meeting did not generate any follow-up emails to send</p>
+                <a href="/app/meetings" className="inline-flex items-center gap-1.5 text-xs text-blue-600 font-semibold hover:underline">
+                  <ChevronRight className="w-3 h-3 rotate-180" />
+                  Back to meetings
+                </a>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {communication.emails_prepared.map((email, i) => (
+                  <div key={i} className="bg-white rounded-lg border border-gray-200 p-4">
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-600 to-blue-700 flex items-center justify-center text-white font-bold text-sm">{email.owner[0]?.toUpperCase()}</div>
+                        <div>
+                          <h3 className="text-sm font-semibold text-gray-900">{email.owner}</h3>
+                          <p className="text-xs text-gray-500">{email.tasks_count} action items</p>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="mb-3">
+                      <label className="text-[10px] text-gray-500 font-semibold uppercase mb-1 block">Recipient Email</label>
+                      <input type="email" value={emailInput[email.owner] || ""} onChange={(e) => setEmailInput(prev => ({ ...prev, [email.owner]: e.target.value }))} placeholder={email.owner.toLowerCase().replace(/\s/g, ".") + "@company.com"} className="w-full px-3 py-2 rounded border border-gray-200 text-gray-800 focus:outline-none focus:border-blue-600 text-sm" />
+                    </div>
+                    <div className="p-3 rounded bg-gray-50 border border-gray-100">
+                      <p className="text-[10px] text-gray-500 mb-1 font-semibold uppercase">Subject</p>
+                      <p className="text-xs text-gray-800 font-medium">{email.subject}</p>
                     </div>
                   </div>
-                </div>
-                <div className="mb-3">
-                  <label className="text-[10px] text-gray-500 font-semibold uppercase mb-1 block">Recipient Email</label>
-                  <input type="email" value={emailInput[email.owner] || ""} onChange={(e) => setEmailInput(prev => ({ ...prev, [email.owner]: e.target.value }))} placeholder={email.owner.toLowerCase().replace(/\s/g, ".") + "@company.com"} className="w-full px-3 py-2 rounded border border-gray-200 text-gray-800 focus:outline-none focus:border-blue-600 text-sm" />
-                </div>
-                <div className="p-3 rounded bg-gray-50 border border-gray-100">
-                  <p className="text-[10px] text-gray-500 mb-1 font-semibold uppercase">Subject</p>
-                  <p className="text-xs text-gray-800 font-medium">{email.subject}</p>
-                </div>
+                ))}
+                <button onClick={sendAllEmails} disabled={sendingEmails} className={"w-full flex items-center justify-center gap-2 py-3 rounded-lg font-semibold text-sm " + (emailsSent ? "bg-green-50 text-green-700 border border-green-200" : "bg-blue-600 text-white hover:bg-blue-700") + " disabled:opacity-60"}>
+                  {sendingEmails ? "Sending..." : emailsSent ? "All Emails Sent - Click to Resend" : "Send All Follow-up Emails"}
+                </button>
               </div>
-            ))}
-            {(communication.emails_prepared || []).length > 0 && (
-              <button onClick={sendAllEmails} disabled={sendingEmails || emailsSent} className={"w-full flex items-center justify-center gap-2 py-3 rounded-lg font-semibold text-sm " + (emailsSent ? "bg-green-50 text-green-700 border border-green-200" : "bg-blue-600 text-white hover:bg-blue-700") + " disabled:opacity-60"}>
-                {sendingEmails ? "Sending..." : emailsSent ? "All Emails Sent" : "Send All Follow-up Emails"}
-              </button>
             )}
           </div>
         )}
 
         {activeTab === "transcript" && (
           <div className="max-w-3xl bg-white rounded-lg border border-gray-200 p-5">
-            <h3 className="text-sm font-bold text-gray-900 mb-4">Meeting Transcript</h3>
-            <div className="font-mono text-xs text-gray-700 leading-loose whitespace-pre-wrap">{result.transcription?.full_transcript || "No transcript available"}</div>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-bold text-gray-900">Meeting Transcript</h3>
+              {result.transcription?.full_transcript && (
+                <div className="flex items-center gap-2">
+                  <button onClick={copyTranscript} className="flex items-center gap-1.5 px-2.5 py-1.5 border border-gray-200 rounded-md text-[11px] font-semibold text-gray-700 hover:bg-gray-50">
+                    {transcriptCopied ? (<><Check className="w-3 h-3 text-green-600" />Copied!</>) : (<><Copy className="w-3 h-3" />Copy</>)}
+                  </button>
+                  <button onClick={downloadTranscript} className="flex items-center gap-1.5 px-2.5 py-1.5 bg-blue-600 text-white rounded-md text-[11px] font-semibold hover:bg-blue-700">
+                    <Download className="w-3 h-3" />
+                    Download
+                  </button>
+                </div>
+              )}
+            </div>
+            {result.transcription?.full_transcript ? (
+              <div className="font-mono text-xs text-gray-700 leading-loose whitespace-pre-wrap max-h-[600px] overflow-y-auto p-4 bg-gray-50 rounded border border-gray-100">{result.transcription.full_transcript}</div>
+            ) : (
+              <div className="text-center py-12">
+                <FileText className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                <p className="text-xs text-gray-500">No transcript available for this meeting</p>
+              </div>
+            )}
           </div>
         )}
       </div>

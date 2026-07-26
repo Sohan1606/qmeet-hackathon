@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import { Zap, Check } from "lucide-react"
 
@@ -26,26 +26,6 @@ export default function IntegrationsPage() {
       </div>
 
       <div className="flex-1 overflow-y-auto p-6">
-        
-        <div className="mb-6 p-6 bg-gradient-to-br from-purple-600 to-blue-700 rounded-xl text-white">
-          <div className="flex items-start gap-4">
-            <div className="w-12 h-12 rounded-lg bg-white/20 flex items-center justify-center flex-shrink-0">
-              <Zap className="w-6 h-6" />
-            </div>
-            <div className="flex-1">
-              <div className="flex items-center gap-2 mb-1">
-                <h3 className="text-lg font-bold">The Grace Protocol</h3>
-                <span className="text-[10px] px-2 py-0.5 bg-yellow-400 text-yellow-900 rounded-full font-bold">EXCLUSIVE</span>
-              </div>
-              <p className="text-sm opacity-90 mb-3">When a deadline is missed, QMEET does not snitch to your manager. It asks YOU first: Are you blocked? Then redirects the issue autonomously.</p>
-              <div className="flex items-center gap-4 text-xs">
-                <div className="flex items-center gap-1"><Check className="w-3 h-3" /><span>Empathetic AI</span></div>
-                <div className="flex items-center gap-1"><Check className="w-3 h-3" /><span>Removes blockers</span></div>
-                <div className="flex items-center gap-1"><Check className="w-3 h-3" /><span>Manager only if needed</span></div>
-              </div>
-            </div>
-          </div>
-        </div>
 
         <div className="mb-4 flex items-center gap-2">
           <h3 className="text-sm font-bold text-gray-900">Coming Soon</h3>

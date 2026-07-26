@@ -1,7 +1,7 @@
 ﻿"use client"
 
 import { useState, useEffect } from "react"
-import { TrendingUp, Clock, DollarSign, Users, Target, Zap, BarChart3, Calendar, ArrowUp, ArrowDown, Award, AlertTriangle, CheckCircle, Activity, Download, Filter } from "lucide-react"
+import { TrendingUp, Clock, Users, Target, Zap, BarChart3, Calendar, ArrowUp, ArrowDown, Award, AlertTriangle, CheckCircle, Activity, Download, Sparkles, ShieldAlert, X, MessageSquareOff, UserX, Repeat, Timer, FileWarning } from "lucide-react"
 import axios from "axios"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000"
@@ -23,47 +23,126 @@ export default function AnalyticsPage() {
     setLoading(false)
   }
 
-  const totalMeetings = meetings.length
-  const totalCost = meetings.reduce((sum, m) => sum + (m.meeting_cost_inr || 0), 0)
-  const avgScore = totalMeetings > 0 ? Math.round(meetings.reduce((sum, m) => sum + (m.effectiveness_score || 0), 0) / totalMeetings) : 82
+  const rangeMultiplier = timeRange === "7days" ? 1 : timeRange === "30days" ? 4.3 : timeRange === "90days" ? 12.9 : 26
+  const rangeLabel = timeRange === "7days" ? "Last 7 days" : timeRange === "30days" ? "Last 30 days" : timeRange === "90days" ? "Last 90 days" : "All time"
+
   const positiveCount = meetings.filter(m => m.sentiment === "positive").length
-  const positiveRate = totalMeetings > 0 ? Math.round((positiveCount / totalMeetings) * 100) : 68
+  const positiveRate = meetings.length > 0 ? Math.round((positiveCount / meetings.length) * 100) : 15
   const neutralRate = Math.max(0, 100 - positiveRate - 8)
   const tenseRate = 8
 
-  const weeklyData = [
-    { day: "Mon", meetings: 12, effectiveness: 78, cost: 342000 },
-    { day: "Tue", meetings: 15, effectiveness: 82, cost: 425000 },
-    { day: "Wed", meetings: 18, effectiveness: 85, cost: 512000 },
-    { day: "Thu", meetings: 14, effectiveness: 79, cost: 398000 },
-    { day: "Fri", meetings: 8, effectiveness: 88, cost: 228000 },
-    { day: "Sat", meetings: 3, effectiveness: 90, cost: 85000 },
-    { day: "Sun", meetings: 1, effectiveness: 92, cost: 28000 }
+  const baseWeeklyData = [
+    { day: "Mon", meetings: 12, effectiveness: 78 },
+    { day: "Tue", meetings: 15, effectiveness: 82 },
+    { day: "Wed", meetings: 18, effectiveness: 85 },
+    { day: "Thu", meetings: 14, effectiveness: 79 },
+    { day: "Fri", meetings: 8, effectiveness: 88 },
+    { day: "Sat", meetings: 3, effectiveness: 90 },
+    { day: "Sun", meetings: 1, effectiveness: 92 }
   ]
+  const weeklyData = baseWeeklyData.map(d => ({ ...d, meetings: Math.round(d.meetings * rangeMultiplier) }))
   const maxMeetings = Math.max(...weeklyData.map(d => d.meetings))
 
-  const teamMembers = [
-    { name: "Sarah Kim", role: "Senior Designer", tasks: 24, completed: 22, rate: 92, avatar: "SK", color: "bg-purple-500" },
-    { name: "Mike Chen", role: "Lead Developer", tasks: 31, completed: 27, rate: 87, avatar: "MC", color: "bg-blue-500" },
-    { name: "Priya Sharma", role: "Marketing Head", tasks: 18, completed: 15, rate: 83, avatar: "PS", color: "bg-pink-500" },
-    { name: "John Doe", role: "Project Manager", tasks: 42, completed: 34, rate: 81, avatar: "JD", color: "bg-emerald-500" },
-    { name: "Rahul Verma", role: "DevOps Engineer", tasks: 15, completed: 11, rate: 73, avatar: "RV", color: "bg-orange-500" }
+  const totalAnalyzed = weeklyData.reduce((s, d) => s + d.meetings, 0)
+
+  const loopholes = [
+    { 
+      icon: FileWarning,
+      title: "No agenda set",
+      count: Math.round(totalAnalyzed * 0.32),
+      percentage: 32,
+      severity: "high",
+      description: "Meetings started without a clear agenda",
+      impact: "Discussion drifts and loses focus",
+      fix: "Enable agenda template for all meeting invites"
+    },
+    { 
+      icon: Target,
+      title: "No action items assigned",
+      count: Math.round(totalAnalyzed * 0.24),
+      percentage: 24,
+      severity: "high",
+      description: "Meetings ended without assigning next steps",
+      impact: "Ideas discussed but nothing gets done",
+      fix: "QMEET AI can auto-extract action items"
+    },
+    { 
+      icon: UserX,
+      title: "Decision maker absent",
+      count: Math.round(totalAnalyzed * 0.18),
+      percentage: 18,
+      severity: "medium",
+      description: "Meetings held without key decision maker",
+      impact: "Follow-up meetings required, delays decisions",
+      fix: "Check attendee list before scheduling"
+    },
+    { 
+      icon: Timer,
+      title: "Ran overtime",
+      count: Math.round(totalAnalyzed * 0.28),
+      percentage: 28,
+      severity: "medium",
+      description: "Meetings that exceeded scheduled duration",
+      impact: "Disrupts next meetings and productivity",
+      fix: "Set hard stops and use time-boxing"
+    },
+    { 
+      icon: MessageSquareOff,
+      title: "Silent participants",
+      count: Math.round(totalAnalyzed * 0.45),
+      percentage: 45,
+      severity: "low",
+      description: "3+ attendees didn't speak in meetings",
+      impact: "Passive attendance = wasted headcount",
+      fix: "Question: Do they need to be there?"
+    },
+    { 
+      icon: Repeat,
+      title: "Repeated topics",
+      count: Math.round(totalAnalyzed * 0.15),
+      percentage: 15,
+      severity: "medium",
+      description: "Same topic discussed in multiple meetings",
+      impact: "Wasted cycles, unclear conclusions",
+      fix: "Document decisions clearly in meeting notes"
+    }
   ]
 
-  const departments = [
-    { name: "Engineering", meetings: 42, cost: 1440000, color: "bg-blue-600" },
-    { name: "Marketing", meetings: 23, cost: 780000, color: "bg-purple-600" },
-    { name: "Sales", meetings: 18, cost: 620000, color: "bg-pink-600" },
-    { name: "Design", meetings: 12, cost: 410000, color: "bg-orange-600" },
-    { name: "Operations", meetings: 5, cost: 170000, color: "bg-teal-600" }
-  ]
-  const maxCost = Math.max(...departments.map(d => d.cost))
+  const totalLoopholes = loopholes.reduce((s, l) => s + l.count, 0)
+  const healthScore = Math.max(0, Math.min(100, 100 - Math.round((totalLoopholes / (totalAnalyzed * 6)) * 100)))
 
   const RADIUS = 40
   const CIRC = 2 * Math.PI * RADIUS
   const posDash = CIRC * (positiveRate / 100)
   const neuDash = CIRC * (neutralRate / 100)
   const tenDash = CIRC * (tenseRate / 100)
+
+  const handleExport = () => {
+    const rows = [
+      ["Metric", "Value"],
+      ["Time Range", rangeLabel],
+      ["Meeting Health Score", healthScore + "/100"],
+      ["Positive Sentiment %", positiveRate + "%"],
+      ["Neutral Sentiment %", neutralRate + "%"],
+      ["Tense Sentiment %", tenseRate + "%"],
+      [""],
+      ["Day", "Meetings", "Effectiveness %"],
+      ...weeklyData.map(d => [d.day, d.meetings, d.effectiveness]),
+      [""],
+      ["Loophole", "Count", "Percentage", "Severity", "Impact", "Fix"],
+      ...loopholes.map(l => [l.title, l.count, l.percentage + "%", l.severity, l.impact, l.fix])
+    ]
+    const csv = rows.map(r => r.join(",")).join("\n")
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.href = url
+    link.download = "qmeet-analytics-" + timeRange + "-" + new Date().toISOString().split("T")[0] + ".csv"
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+  }
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
@@ -87,7 +166,7 @@ export default function AnalyticsPage() {
                 </button>
               ))}
             </div>
-            <button className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 text-gray-700 rounded text-xs font-semibold hover:bg-gray-50">
+            <button onClick={handleExport} className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 text-gray-700 rounded text-xs font-semibold hover:bg-gray-50 hover:border-gray-300 transition-colors">
               <Download className="w-3.5 h-3.5" />
               Export
             </button>
@@ -97,79 +176,13 @@ export default function AnalyticsPage() {
 
       <div className="flex-1 overflow-y-auto p-6 bg-gray-50">
 
-        <div className="grid grid-cols-4 gap-4 mb-6">
-          <div className="p-4 bg-white rounded-lg border border-gray-200 hover:shadow-md transition-shadow">
-            <div className="flex items-center justify-between mb-2">
-              <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
-                <Calendar className="w-4 h-4 text-blue-600" />
-              </div>
-              <span className="flex items-center gap-0.5 text-[10px] font-semibold text-green-600">
-                <ArrowUp className="w-3 h-3" />+23%
-              </span>
-            </div>
-            <div className="text-2xl font-bold text-gray-900">{totalMeetings || 71}</div>
-            <div className="text-xs text-gray-500 mt-0.5">Total meetings</div>
-            <div className="mt-2 h-1 bg-gray-100 rounded-full overflow-hidden">
-              <div className="h-full bg-blue-600 rounded-full" style={{ width: "72%" }}></div>
-            </div>
-          </div>
-
-          <div className="p-4 bg-white rounded-lg border border-gray-200 hover:shadow-md transition-shadow">
-            <div className="flex items-center justify-between mb-2">
-              <div className="w-8 h-8 rounded-lg bg-green-100 flex items-center justify-center">
-                <TrendingUp className="w-4 h-4 text-green-600" />
-              </div>
-              <span className="flex items-center gap-0.5 text-[10px] font-semibold text-green-600">
-                <ArrowUp className="w-3 h-3" />+12%
-              </span>
-            </div>
-            <div className="text-2xl font-bold text-gray-900">{avgScore}<span className="text-sm text-gray-400 font-normal">/100</span></div>
-            <div className="text-xs text-gray-500 mt-0.5">Avg effectiveness</div>
-            <div className="mt-2 h-1 bg-gray-100 rounded-full overflow-hidden">
-              <div className="h-full bg-green-500 rounded-full" style={{ width: avgScore + "%" }}></div>
-            </div>
-          </div>
-
-          <div className="p-4 bg-white rounded-lg border border-gray-200 hover:shadow-md transition-shadow">
-            <div className="flex items-center justify-between mb-2">
-              <div className="w-8 h-8 rounded-lg bg-pink-100 flex items-center justify-center">
-                <DollarSign className="w-4 h-4 text-pink-600" />
-              </div>
-              <span className="flex items-center gap-0.5 text-[10px] font-semibold text-red-600">
-                <ArrowDown className="w-3 h-3" />-8%
-              </span>
-            </div>
-            <div className="text-2xl font-bold text-gray-900">Rs {((totalCost || 3420000) / 100000).toFixed(1)}L</div>
-            <div className="text-xs text-gray-500 mt-0.5">Meeting cost</div>
-            <div className="mt-2 h-1 bg-gray-100 rounded-full overflow-hidden">
-              <div className="h-full bg-pink-500 rounded-full" style={{ width: "65%" }}></div>
-            </div>
-          </div>
-
-          <div className="p-4 rounded-lg bg-gradient-to-br from-blue-600 to-blue-800 text-white shadow-lg">
-            <div className="flex items-center justify-between mb-2">
-              <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">
-                <Award className="w-4 h-4 text-white" />
-              </div>
-              <span className="flex items-center gap-0.5 text-[10px] font-semibold">
-                <ArrowUp className="w-3 h-3" />+40%
-              </span>
-            </div>
-            <div className="text-2xl font-bold">Rs {((totalCost || 3420000) * 0.4 / 100000).toFixed(1)}L</div>
-            <div className="text-xs opacity-90 mt-0.5">Cost saved by QMEET</div>
-            <div className="mt-2 h-1 bg-white/20 rounded-full overflow-hidden">
-              <div className="h-full bg-white rounded-full" style={{ width: "40%" }}></div>
-            </div>
-          </div>
-        </div>
-
         <div className="grid grid-cols-3 gap-4 mb-6">
 
           <div className="col-span-2 p-5 bg-white rounded-lg border border-gray-200">
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h3 className="text-sm font-bold text-gray-900">Meeting Activity</h3>
-                <p className="text-xs text-gray-500">Last 7 days - Meetings volume and effectiveness</p>
+                <p className="text-xs text-gray-500">{rangeLabel} - Meetings volume and effectiveness</p>
               </div>
               <div className="flex items-center gap-3 text-xs">
                 <div className="flex items-center gap-1">
@@ -188,9 +201,8 @@ export default function AnalyticsPage() {
                   <div className="w-full flex flex-col items-center gap-1 flex-1 justify-end">
                     <div className="text-[10px] font-semibold text-green-600">{d.effectiveness}%</div>
                     <div className="w-full bg-gradient-to-t from-blue-600 to-blue-400 rounded-t hover:opacity-80 transition-opacity relative group min-h-[8px]" style={{ height: Math.max(8, (d.meetings / maxMeetings) * 180) + "px" }}>
-                      <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
-                        <div>{d.meetings} meetings</div>
-                        <div className="text-[9px] opacity-80">Rs {(d.cost / 1000).toFixed(0)}K cost</div>
+                      <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
+                        {d.meetings} meetings
                       </div>
                     </div>
                   </div>
@@ -240,122 +252,108 @@ export default function AnalyticsPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4 mb-6">
-
-          <div className="p-5 bg-white rounded-lg border border-gray-200">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h3 className="text-sm font-bold text-gray-900">Cost by Department</h3>
-                <p className="text-xs text-gray-500">Meeting cost breakdown this quarter</p>
-              </div>
-              <div className="text-right">
-                <div className="text-[10px] text-gray-500 font-semibold uppercase">Total</div>
-                <div className="text-lg font-bold text-gray-900">Rs 34.2L</div>
-              </div>
+        <div className="p-5 bg-white rounded-lg border border-gray-200 mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+                <ShieldAlert className="w-4 h-4 text-red-600" />
+                Meeting Loopholes Detected
+              </h3>
+              <p className="text-xs text-gray-500">Bad patterns AI detected in your meetings - {rangeLabel}</p>
             </div>
-            <div className="space-y-3">
-              {departments.map((dept, i) => (
-                <div key={i}>
-                  <div className="flex items-center justify-between text-xs mb-1">
-                    <div className="flex items-center gap-2">
-                      <div className={"w-2 h-2 rounded-full " + dept.color}></div>
-                      <span className="font-semibold text-gray-900">{dept.name}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-gray-500">{dept.meetings} meetings</span>
-                      <span className="font-bold text-gray-900">Rs {(dept.cost / 100000).toFixed(1)}L</span>
-                    </div>
-                  </div>
-                  <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                    <div className={"h-full rounded-full " + dept.color} style={{ width: (dept.cost / maxCost * 100) + "%" }}></div>
-                  </div>
-                </div>
-              ))}
+            <div className="flex items-center gap-2">
+              <div className="text-right">
+                <div className="text-[10px] text-gray-500 uppercase font-semibold">Meeting Health</div>
+                <div className={"text-lg font-bold " + (healthScore >= 80 ? "text-green-600" : healthScore >= 60 ? "text-yellow-600" : "text-red-600")}>{healthScore}/100</div>
+              </div>
+              <span className="text-[10px] px-2 py-0.5 bg-red-100 text-red-700 rounded-full font-semibold">FIX THESE</span>
             </div>
           </div>
-
-          <div className="p-5 bg-white rounded-lg border border-gray-200">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
-                  <Zap className="w-4 h-4 text-blue-600" />
-                  AI Insights
-                </h3>
-                <p className="text-xs text-gray-500">Actionable recommendations</p>
-              </div>
-              <span className="text-[10px] px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full font-semibold">POWERED BY AI</span>
-            </div>
-            <div className="space-y-2">
-              <div className="p-3 bg-blue-50 border border-blue-100 rounded-lg">
-                <div className="flex items-start gap-2">
-                  <TrendingUp className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-xs font-semibold text-gray-900 mb-1">Fridays are 40% more productive</p>
-                    <p className="text-[11px] text-gray-600">Schedule important meetings on Fridays for best outcomes</p>
+          <div className="grid grid-cols-2 gap-3">
+            {loopholes.map((lh, i) => {
+              const Icon = lh.icon
+              const severityColor = lh.severity === "high" ? "border-red-200 bg-red-50" : lh.severity === "medium" ? "border-yellow-200 bg-yellow-50" : "border-gray-200 bg-gray-50"
+              const iconColor = lh.severity === "high" ? "text-red-600 bg-red-100" : lh.severity === "medium" ? "text-yellow-600 bg-yellow-100" : "text-gray-600 bg-gray-100"
+              const badgeColor = lh.severity === "high" ? "bg-red-100 text-red-700" : lh.severity === "medium" ? "bg-yellow-100 text-yellow-700" : "bg-gray-100 text-gray-700"
+              return (
+                <div key={i} className={"p-4 rounded-lg border-2 " + severityColor}>
+                  <div className="flex items-start gap-3 mb-2">
+                    <div className={"w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 " + iconColor}>
+                      <Icon className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between mb-1">
+                        <h4 className="text-sm font-bold text-gray-900">{lh.title}</h4>
+                        <span className={"text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase " + badgeColor}>{lh.severity}</span>
+                      </div>
+                      <p className="text-[11px] text-gray-600 mb-2">{lh.description}</p>
+                      <div className="flex items-baseline gap-1 mb-2">
+                        <span className="text-2xl font-bold text-gray-900">{lh.count}</span>
+                        <span className="text-xs text-gray-500">meetings ({lh.percentage}%)</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="pt-2 border-t border-white/60 space-y-1">
+                    <p className="text-[10px] text-gray-700"><strong>Impact:</strong> {lh.impact}</p>
+                    <div className="flex items-start gap-1 mt-1">
+                      <Sparkles className="w-3 h-3 text-blue-600 flex-shrink-0 mt-0.5" />
+                      <p className="text-[10px] text-blue-900"><strong>Fix:</strong> {lh.fix}</p>
+                    </div>
                   </div>
                 </div>
-              </div>
-              <div className="p-3 bg-yellow-50 border border-yellow-100 rounded-lg">
-                <div className="flex items-start gap-2">
-                  <AlertTriangle className="w-4 h-4 text-yellow-600 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-xs font-semibold text-gray-900 mb-1">Rahul is overloaded</p>
-                    <p className="text-[11px] text-gray-600">15 tasks, 73% completion. Consider redistributing 3 tasks</p>
-                  </div>
-                </div>
-              </div>
-              <div className="p-3 bg-green-50 border border-green-100 rounded-lg">
-                <div className="flex items-start gap-2">
-                  <CheckCircle className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-xs font-semibold text-gray-900 mb-1">Save Rs 45,000/month</p>
-                    <p className="text-[11px] text-gray-600">40% of Monday meetings could be async emails</p>
-                  </div>
-                </div>
-              </div>
-              <div className="p-3 bg-purple-50 border border-purple-100 rounded-lg">
-                <div className="flex items-start gap-2">
-                  <Target className="w-4 h-4 text-purple-600 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-xs font-semibold text-gray-900 mb-1">Sarah is top performer</p>
-                    <p className="text-[11px] text-gray-600">92% completion rate. Consider promoting to team lead</p>
-                  </div>
-                </div>
-              </div>
-            </div>
+              )
+            })}
           </div>
         </div>
 
         <div className="p-5 bg-white rounded-lg border border-gray-200">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h3 className="text-sm font-bold text-gray-900">Team Accountability Leaderboard</h3>
-              <p className="text-xs text-gray-500">Ranked by task completion rate</p>
+              <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+                <Zap className="w-4 h-4 text-blue-600" />
+                AI Insights
+              </h3>
+              <p className="text-xs text-gray-500">Actionable recommendations from your meeting data</p>
             </div>
-            <Award className="w-5 h-5 text-yellow-500" />
+            <span className="text-[10px] px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full font-semibold">POWERED BY AI</span>
           </div>
-          <div className="space-y-2">
-            {teamMembers.map((member, i) => (
-              <div key={i} className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded-lg transition-colors">
-                <div className="text-xs font-bold text-gray-400 w-4">{i + 1}</div>
-                <div className={"w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold " + member.color}>{member.avatar}</div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between mb-1">
-                    <div>
-                      <span className="text-xs font-semibold text-gray-900">{member.name}</span>
-                      <span className="text-[10px] text-gray-500 ml-2">{member.role}</span>
-                    </div>
-                    <span className="text-sm font-bold text-gray-900">{member.rate}%</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                      <div className={"h-full rounded-full " + (member.rate >= 90 ? "bg-green-500" : member.rate >= 80 ? "bg-blue-600" : "bg-yellow-500")} style={{ width: member.rate + "%" }}></div>
-                    </div>
-                    <span className="text-[10px] text-gray-500 font-mono">{member.completed}/{member.tasks} tasks</span>
-                  </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="p-3 bg-blue-50 border border-blue-100 rounded-lg">
+              <div className="flex items-start gap-2">
+                <TrendingUp className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-xs font-semibold text-gray-900 mb-1">Fridays are 40% more productive</p>
+                  <p className="text-[11px] text-gray-600">Schedule important meetings on Fridays for best outcomes</p>
                 </div>
               </div>
-            ))}
+            </div>
+            <div className="p-3 bg-yellow-50 border border-yellow-100 rounded-lg">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 text-yellow-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-xs font-semibold text-gray-900 mb-1">Rahul is overloaded</p>
+                  <p className="text-[11px] text-gray-600">15 tasks, 73% completion. Consider redistributing 3 tasks</p>
+                </div>
+              </div>
+            </div>
+            <div className="p-3 bg-green-50 border border-green-100 rounded-lg">
+              <div className="flex items-start gap-2">
+                <CheckCircle className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-xs font-semibold text-gray-900 mb-1">Async opportunity found</p>
+                  <p className="text-[11px] text-gray-600">40% of Monday meetings could be async emails</p>
+                </div>
+              </div>
+            </div>
+            <div className="p-3 bg-purple-50 border border-purple-100 rounded-lg">
+              <div className="flex items-start gap-2">
+                <Target className="w-4 h-4 text-purple-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-xs font-semibold text-gray-900 mb-1">Sarah is top performer</p>
+                  <p className="text-[11px] text-gray-600">92% completion rate. Consider promoting to team lead</p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 

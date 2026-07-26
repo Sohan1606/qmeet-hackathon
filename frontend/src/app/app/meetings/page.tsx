@@ -1,7 +1,7 @@
-"use client"
+﻿"use client"
 
 import { useState, useEffect } from "react"
-import { Search, Calendar, TrendingUp, DollarSign, Plus, ArrowUpRight } from "lucide-react"
+import { Search, Calendar, Flame, ArrowLeft, ArrowUpRight, ArrowUp } from "lucide-react"
 import { useRouter } from "next/navigation"
 import axios from "axios"
 
@@ -30,14 +30,27 @@ export default function MeetingsPage() {
     const matchesSearch = m.title?.toLowerCase().includes(search.toLowerCase())
     if (filter === "positive") return matchesSearch && m.sentiment === "positive"
     if (filter === "tense") return matchesSearch && m.sentiment === "tense"
-    if (filter === "high-cost") return matchesSearch && m.meeting_cost_inr > 50000
+    if (filter === "low-score") return matchesSearch && (m.effectiveness_score || 0) < 60
     return matchesSearch
   })
 
-  const totalCost = meetings.reduce((sum, m) => sum + (m.meeting_cost_inr || 0), 0)
-  const avgEffectiveness = meetings.length > 0 
-    ? Math.round(meetings.reduce((sum, m) => sum + (m.effectiveness_score || 0), 0) / meetings.length)
-    : 0
+  const now = new Date()
+  const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+  const twoWeeksAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000)
+
+  const thisWeekMeetings = meetings.filter(m => {
+    const d = new Date(m.date || m.created_at)
+    return d >= oneWeekAgo && d <= now
+  }).length
+
+  const lastWeekMeetings = meetings.filter(m => {
+    const d = new Date(m.date || m.created_at)
+    return d >= twoWeeksAgo && d < oneWeekAgo
+  }).length
+
+  const weekChange = lastWeekMeetings > 0 
+    ? Math.round(((thisWeekMeetings - lastWeekMeetings) / lastWeekMeetings) * 100)
+    : (thisWeekMeetings > 0 ? 100 : 0)
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
@@ -46,42 +59,38 @@ export default function MeetingsPage() {
         <div className="flex items-center justify-between mb-4">
           <div>
             <h1 className="text-xl font-bold text-gray-900">Meetings Library</h1>
-            <p className="text-xs text-gray-500 mt-0.5">All meetings analyzed by QMEET · {meetings.length} total</p>
+            <p className="text-xs text-gray-500 mt-0.5">All meetings analyzed by QMEET - {meetings.length} total</p>
           </div>
-          <button onClick={() => router.push("/")} className="flex items-center gap-1.5 px-3 py-1.5 bg-[#2383E2] text-white rounded text-[12px] font-semibold hover:bg-[#1a6dc4]">
-            <Plus className="w-3.5 h-3.5" />
-            New meeting
+          <button onClick={() => router.push("/app")} className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-900 text-white rounded text-[12px] font-semibold hover:bg-gray-700">
+            <ArrowLeft className="w-3.5 h-3.5" />
+            Back to Home
           </button>
         </div>
 
-        <div className="grid grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 gap-3">
           <div className="p-3 bg-gray-50 rounded-lg border border-gray-100">
             <div className="flex items-center gap-2 mb-1">
               <Calendar className="w-3.5 h-3.5 text-[#2383E2]" />
               <span className="text-[10px] text-gray-500 font-semibold uppercase tracking-wider">Total Meetings</span>
             </div>
             <div className="text-2xl font-bold text-gray-900">{meetings.length}</div>
+            <div className="text-[10px] text-gray-500 mt-0.5">All time</div>
           </div>
           <div className="p-3 bg-gray-50 rounded-lg border border-gray-100">
-            <div className="flex items-center gap-2 mb-1">
-              <TrendingUp className="w-3.5 h-3.5 text-green-600" />
-              <span className="text-[10px] text-gray-500 font-semibold uppercase tracking-wider">Avg Effectiveness</span>
+            <div className="flex items-center justify-between mb-1">
+              <div className="flex items-center gap-2">
+                <Flame className="w-3.5 h-3.5 text-orange-600" />
+                <span className="text-[10px] text-gray-500 font-semibold uppercase tracking-wider">This Week</span>
+              </div>
+              {weekChange !== 0 && (
+                <span className={"flex items-center gap-0.5 text-[10px] font-semibold " + (weekChange > 0 ? "text-green-600" : "text-red-600")}>
+                  <ArrowUp className={"w-3 h-3 " + (weekChange < 0 ? "rotate-180" : "")} />
+                  {weekChange > 0 ? "+" : ""}{weekChange}%
+                </span>
+              )}
             </div>
-            <div className="text-2xl font-bold text-gray-900">{avgEffectiveness}<span className="text-sm text-gray-400 font-normal">/100</span></div>
-          </div>
-          <div className="p-3 bg-gray-50 rounded-lg border border-gray-100">
-            <div className="flex items-center gap-2 mb-1">
-              <DollarSign className="w-3.5 h-3.5 text-pink-600" />
-              <span className="text-[10px] text-gray-500 font-semibold uppercase tracking-wider">Total Cost</span>
-            </div>
-            <div className="text-2xl font-bold text-gray-900">Rs {(totalCost / 100000).toFixed(1)}L</div>
-          </div>
-          <div className="p-3 bg-gradient-to-br from-[#2383E2] to-blue-700 rounded-lg text-white">
-            <div className="flex items-center gap-2 mb-1">
-              <DollarSign className="w-3.5 h-3.5" />
-              <span className="text-[10px] font-semibold uppercase tracking-wider">Est. Saved</span>
-            </div>
-            <div className="text-2xl font-bold">Rs {((totalCost * 0.4) / 100000).toFixed(1)}L</div>
+            <div className="text-2xl font-bold text-gray-900">{thisWeekMeetings}</div>
+            <div className="text-[10px] text-gray-500 mt-0.5">vs {lastWeekMeetings} last week</div>
           </div>
         </div>
       </div>
@@ -92,7 +101,7 @@ export default function MeetingsPage() {
           <input type="text" placeholder="Search meetings..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full pl-9 pr-3 py-1.5 text-sm border border-gray-200 rounded focus:outline-none focus:border-[#2383E2]" />
         </div>
         <div className="flex items-center gap-1">
-          {[{ id: "all", label: "All" }, { id: "positive", label: "Positive" }, { id: "tense", label: "Tense" }, { id: "high-cost", label: "High Cost" }].map(f => (
+          {[{ id: "all", label: "All" }, { id: "positive", label: "Positive" }, { id: "tense", label: "Tense" }, { id: "low-score", label: "Low Score" }].map(f => (
             <button key={f.id} onClick={() => setFilter(f.id)} className={"px-3 py-1.5 text-xs font-medium rounded transition-colors " + (filter === f.id ? "bg-gray-900 text-white" : "text-gray-600 hover:bg-gray-100")}>
               {f.label}
             </button>
@@ -110,11 +119,7 @@ export default function MeetingsPage() {
           <div className="text-center py-20 bg-white rounded-lg border border-gray-200">
             <Calendar className="w-12 h-12 text-gray-300 mx-auto mb-3" />
             <p className="text-gray-900 font-semibold mb-1">No meetings yet</p>
-            <p className="text-sm text-gray-500 mb-4">Analyze your first meeting to get started</p>
-            <button onClick={() => router.push("/")} className="inline-flex items-center gap-2 px-4 py-2 bg-[#2383E2] text-white rounded-lg text-sm font-semibold hover:bg-[#1a6dc4]">
-              <Plus className="w-4 h-4" />
-              Analyze a meeting
-            </button>
+            <p className="text-sm text-gray-500">Use the New Meeting button in the sidebar to analyze one</p>
           </div>
         ) : (
           <div className="space-y-2">
@@ -147,10 +152,6 @@ export default function MeetingsPage() {
                     <div className="text-right">
                       <div className="text-xs text-gray-500 font-semibold uppercase tracking-wider">Score</div>
                       <div className="text-lg font-bold text-gray-900">{meeting.effectiveness_score || 0}<span className="text-xs text-gray-400 font-normal">/100</span></div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-xs text-gray-500 font-semibold uppercase tracking-wider">Cost</div>
-                      <div className="text-lg font-bold text-gray-900">Rs {Math.round((meeting.meeting_cost_inr || 0) / 1000)}K</div>
                     </div>
                     <ArrowUpRight className="w-4 h-4 text-gray-400 group-hover:text-[#2383E2] group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all" />
                   </div>

@@ -1,7 +1,7 @@
-"use client"
+﻿"use client"
 
 import { useState, useEffect } from "react"
-import { Calendar, DollarSign, Check, AlertTriangle, Award, Zap, Download, Mail, Send, ArrowUp, Target } from "lucide-react"
+import { Calendar, Check, AlertTriangle, Award, Zap, Download, Mail, Send, ArrowUp, Target, Bell, ShieldCheck, TrendingUp, Users } from "lucide-react"
 import axios from "axios"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000"
@@ -15,14 +15,11 @@ interface Performer {
 interface Digest {
   week_of: string
   total_meetings: number
-  total_cost_inr: number
-  cost_saved_inr: number
   total_action_items: number
   completed_items: number
   pending_items: number
-  at_risk_items: number
   completion_rate: number
-  avg_effectiveness: number
+  loopholes_fixed: number
   top_performers: Performer[]
   insights: string[]
 }
@@ -30,23 +27,21 @@ interface Digest {
 const FALLBACK_DIGEST: Digest = {
   week_of: "July 18 - July 25, 2026",
   total_meetings: 47,
-  total_cost_inr: 3420000,
-  cost_saved_inr: 1368000,
   total_action_items: 89,
   completed_items: 67,
   pending_items: 15,
-  at_risk_items: 7,
   completion_rate: 75,
-  avg_effectiveness: 82,
+  loopholes_fixed: 12,
   top_performers: [
     { name: "Sarah Kim", completed: 8, rate: 92 },
     { name: "Mike Chen", completed: 6, rate: 87 },
     { name: "Priya Sharma", completed: 5, rate: 83 }
   ],
   insights: [
-    "Meeting cost dropped 12% compared to last week",
-    "Grace Protocol prevented 3 unnecessary escalations",
-    "Fridays showed highest team productivity"
+    "Grace Protocol prevented 3 unnecessary escalations this week",
+    "Fridays showed 40% higher productivity than Mondays",
+    "Team completion rate improved by 15% week-over-week",
+    "3 meetings identified as 'could have been emails'"
   ]
 }
 
@@ -54,15 +49,29 @@ export default function DigestPage() {
   const [digest, setDigest] = useState<Digest | null>(null)
   const [loading, setLoading] = useState(true)
   const [emailSent, setEmailSent] = useState(false)
+  const [subscribed, setSubscribed] = useState(false)
+  const [userEmail, setUserEmail] = useState("")
 
   useEffect(() => {
     fetchDigest()
+    const storedUser = localStorage.getItem("qmeet_user")
+    if (storedUser) {
+      try {
+        const u = JSON.parse(storedUser)
+        setUserEmail(u.email || "you@company.com")
+      } catch (e) {
+        setUserEmail("you@company.com")
+      }
+    } else {
+      setUserEmail("you@company.com")
+    }
+    const sub = localStorage.getItem("qmeet_digest_subscribed")
+    if (sub === "true") setSubscribed(true)
   }, [])
 
   const fetchDigest = async () => {
     try {
       const res = await axios.get(API_URL + "/api/digest/weekly/demo-user")
-      // Merge API response with fallback to fill any missing fields
       setDigest({ ...FALLBACK_DIGEST, ...res.data })
     } catch (e) {
       setDigest(FALLBACK_DIGEST)
@@ -72,7 +81,17 @@ export default function DigestPage() {
 
   const handleSendEmail = () => {
     setEmailSent(true)
-    setTimeout(() => setEmailSent(false), 3000)
+    setTimeout(() => setEmailSent(false), 3500)
+  }
+
+  const handleToggleSubscription = () => {
+    const newState = !subscribed
+    setSubscribed(newState)
+    localStorage.setItem("qmeet_digest_subscribed", newState.toString())
+  }
+
+  const handleExportPDF = () => {
+    window.print()
   }
 
   if (loading || !digest) {
@@ -83,12 +102,18 @@ export default function DigestPage() {
     )
   }
 
-  // Safe defaults for arrays
   const topPerformers = digest.top_performers ?? []
   const insights = digest.insights ?? []
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
+      <style jsx global>{`
+        @media print {
+          aside, header button, .no-print { display: none !important; }
+          .flex-1 { overflow: visible !important; }
+        }
+      `}</style>
+
       <header className="bg-white border-b border-gray-100 px-6 py-5">
         <div className="flex items-center justify-between">
           <div>
@@ -98,11 +123,11 @@ export default function DigestPage() {
             </div>
             <p className="text-xs text-gray-500">{digest.week_of}</p>
           </div>
-          <div className="flex items-center gap-2">
-            <button onClick={handleSendEmail} className={"flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-semibold transition-colors " + (emailSent ? "bg-green-100 text-green-700" : "bg-blue-600 text-white hover:bg-blue-700")}>
-              {emailSent ? (<><Check className="w-3.5 h-3.5" />Sent to inbox</>) : (<><Mail className="w-3.5 h-3.5" />Email to me</>)}
+          <div className="flex items-center gap-2 no-print">
+            <button onClick={handleSendEmail} disabled={emailSent} className={"flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-semibold transition-colors " + (emailSent ? "bg-green-100 text-green-700 cursor-default" : "bg-blue-600 text-white hover:bg-blue-700")}>
+              {emailSent ? (<><Check className="w-3.5 h-3.5" />Sent to {userEmail}</>) : (<><Mail className="w-3.5 h-3.5" />Email to me</>)}
             </button>
-            <button className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 text-gray-700 rounded text-xs font-semibold hover:bg-gray-50">
+            <button onClick={handleExportPDF} className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 text-gray-700 rounded text-xs font-semibold hover:bg-gray-50 hover:border-gray-300 transition-colors">
               <Download className="w-3.5 h-3.5" />
               Export PDF
             </button>
@@ -111,16 +136,15 @@ export default function DigestPage() {
       </header>
 
       <div className="flex-1 overflow-y-auto p-6 bg-gray-50">
-        {/* Hero Banner */}
         <div className="mb-6 p-8 bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-700 rounded-2xl text-white">
           <div className="flex items-center gap-2 mb-3">
             <Calendar className="w-5 h-5" />
             <span className="text-xs font-bold uppercase tracking-wider opacity-90">This Week's Summary</span>
           </div>
-          <h2 className="text-3xl font-bold mb-2">Your team saved Rs {(digest.cost_saved_inr / 100000).toFixed(1)}L this week</h2>
+          <h2 className="text-3xl font-bold mb-2">Your team completed {digest.completed_items} action items this week</h2>
           <p className="text-white/90 mb-6">Automated by QMEET across {digest.total_meetings} meetings analyzed</p>
 
-          <div className="grid grid-cols-4 gap-4">
+          <div className="grid grid-cols-3 gap-4">
             <div>
               <div className="text-3xl font-bold">{digest.total_meetings}</div>
               <div className="text-xs opacity-80">Meetings analyzed</div>
@@ -133,15 +157,10 @@ export default function DigestPage() {
               <div className="text-3xl font-bold">{digest.completion_rate}%</div>
               <div className="text-xs opacity-80">Completion rate</div>
             </div>
-            <div>
-              <div className="text-3xl font-bold">{digest.avg_effectiveness}/100</div>
-              <div className="text-xs opacity-80">Avg effectiveness</div>
-            </div>
           </div>
         </div>
 
-        {/* KPI Grid */}
-        <div className="grid grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-3 gap-4 mb-6">
           <div className="p-4 bg-white rounded-lg border border-gray-200">
             <div className="flex items-center justify-between mb-2">
               <div className="w-8 h-8 rounded-lg bg-green-100 flex items-center justify-center">
@@ -168,32 +187,20 @@ export default function DigestPage() {
             <div className="text-xs text-gray-500 mt-0.5">In progress</div>
           </div>
 
-          <div className="p-4 bg-white rounded-lg border border-red-200">
-            <div className="flex items-center justify-between mb-2">
-              <div className="w-8 h-8 rounded-lg bg-red-100 flex items-center justify-center">
-                <AlertTriangle className="w-4 h-4 text-red-600" />
-              </div>
-              <span className="text-[10px] font-semibold text-red-600">Need attention</span>
-            </div>
-            <div className="text-2xl font-bold text-gray-900">{digest.at_risk_items}</div>
-            <div className="text-xs text-gray-500 mt-0.5">At risk items</div>
-          </div>
-
-          <div className="p-4 rounded-lg bg-gradient-to-br from-green-600 to-emerald-700 text-white">
+          <div className="p-4 rounded-lg bg-gradient-to-br from-purple-600 to-blue-700 text-white">
             <div className="flex items-center justify-between mb-2">
               <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">
-                <DollarSign className="w-4 h-4 text-white" />
+                <ShieldCheck className="w-4 h-4 text-white" />
               </div>
               <span className="flex items-center gap-0.5 text-[10px] font-semibold">
-                <ArrowUp className="w-3 h-3" />+40%
+                <ArrowUp className="w-3 h-3" />+25%
               </span>
             </div>
-            <div className="text-2xl font-bold">Rs {(digest.cost_saved_inr / 100000).toFixed(1)}L</div>
-            <div className="text-xs opacity-90 mt-0.5">Cost saved this week</div>
+            <div className="text-2xl font-bold">{digest.loopholes_fixed || 12}</div>
+            <div className="text-xs opacity-90 mt-0.5">Meeting loopholes fixed</div>
           </div>
         </div>
 
-        {/* Top Performers + Insights */}
         <div className="grid grid-cols-2 gap-4 mb-6">
           <div className="p-5 bg-white rounded-lg border border-gray-200">
             <div className="flex items-center gap-2 mb-4">
@@ -249,21 +256,72 @@ export default function DigestPage() {
           </div>
         </div>
 
-        {/* CTA */}
-        <div className="p-6 bg-white rounded-lg border-2 border-blue-200 border-dashed">
+        <div className="grid grid-cols-3 gap-4 mb-6">
+          <div className="p-5 bg-white rounded-lg border border-gray-200">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
+                <TrendingUp className="w-4 h-4 text-blue-600" />
+              </div>
+              <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wider">Velocity Trend</h3>
+            </div>
+            <div className="text-2xl font-bold text-gray-900 mb-1">2.3 days</div>
+            <p className="text-[11px] text-gray-500 mb-2">Avg time to complete tasks</p>
+            <div className="flex items-center gap-1 text-[10px] text-green-600 font-semibold">
+              <ArrowUp className="w-2.5 h-2.5 rotate-180" />
+              15% faster than last week
+            </div>
+          </div>
+
+          <div className="p-5 bg-white rounded-lg border border-gray-200">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center">
+                <Users className="w-4 h-4 text-purple-600" />
+              </div>
+              <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wider">Team Engagement</h3>
+            </div>
+            <div className="text-2xl font-bold text-gray-900 mb-1">87%</div>
+            <p className="text-[11px] text-gray-500 mb-2">Active participation rate</p>
+            <div className="flex items-center gap-1 text-[10px] text-green-600 font-semibold">
+              <ArrowUp className="w-2.5 h-2.5" />
+              +8% vs last week
+            </div>
+          </div>
+
+          <div className="p-5 bg-white rounded-lg border border-gray-200">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-8 h-8 rounded-lg bg-orange-100 flex items-center justify-center">
+                <ShieldCheck className="w-4 h-4 text-orange-600" />
+              </div>
+              <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wider">Follow-up Rate</h3>
+            </div>
+            <div className="text-2xl font-bold text-gray-900 mb-1">92%</div>
+            <p className="text-[11px] text-gray-500 mb-2">Emails sent automatically</p>
+            <div className="flex items-center gap-1 text-[10px] text-green-600 font-semibold">
+              <ArrowUp className="w-2.5 h-2.5" />
+              +12% vs last week
+            </div>
+          </div>
+        </div>
+
+        <div className={"p-6 rounded-lg border-2 border-dashed transition-colors no-print " + (subscribed ? "bg-green-50 border-green-300" : "bg-white border-blue-200")}>
           <div className="flex items-center justify-between">
             <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
-                <Mail className="w-5 h-5 text-blue-600" />
+              <div className={"w-10 h-10 rounded-lg flex items-center justify-center " + (subscribed ? "bg-green-100" : "bg-blue-100")}>
+                {subscribed ? <Check className="w-5 h-5 text-green-600" /> : <Mail className="w-5 h-5 text-blue-600" />}
               </div>
               <div>
-                <h3 className="text-sm font-bold text-gray-900 mb-1">Get this digest in your inbox every Monday at 8 AM</h3>
-                <p className="text-xs text-gray-600">Auto-generated by QMEET AI. No manual work. Delivered before your first coffee.</p>
+                <h3 className="text-sm font-bold text-gray-900 mb-1">
+                  {subscribed ? "You're subscribed to Weekly Digest" : "Get this digest in your inbox every Monday at 8 AM"}
+                </h3>
+                <p className="text-xs text-gray-600">
+                  {subscribed 
+                    ? "Delivered to " + userEmail + " every Monday at 8:00 AM"
+                    : "Auto-generated by QMEET AI. No manual work. Delivered before your first coffee."}
+                </p>
               </div>
             </div>
-            <button onClick={handleSendEmail} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700">
-              <Send className="w-4 h-4" />
-              Enable Weekly Digest
+            <button onClick={handleToggleSubscription} className={"flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-colors " + (subscribed ? "bg-white border border-gray-200 text-gray-700 hover:bg-gray-50" : "bg-blue-600 text-white hover:bg-blue-700")}>
+              {subscribed ? (<><Bell className="w-4 h-4" />Unsubscribe</>) : (<><Send className="w-4 h-4" />Enable Weekly Digest</>)}
             </button>
           </div>
         </div>
