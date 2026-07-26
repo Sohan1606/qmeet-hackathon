@@ -8,6 +8,7 @@ import uuid
 import os
 import aiofiles
 import resend
+import requests   # 👈 ADD THIS LINE
 from datetime import datetime
 from dotenv import load_dotenv
 from pydantic import BaseModel
@@ -18,11 +19,213 @@ app = FastAPI(title="NEXUS API", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
+    allow_origins=["*"],  # Allow all origins
+    allow_credentials=False,
+    allow_methods=["*"],  # GET, POST, PUT, DELETE, OPTIONS
     allow_headers=["*"],
+    expose_headers=["*"]
 )
+# ==================== RECALL.AI BOT INTEGRATION ====================
+
+RECALL_API_KEY = os.getenv("RECALL_API_KEY")
+RECALL_REGION = os.getenv("RECALL_REGION", "us-east-1")
+RECALL_BASE_URL = f"https://{RECALL_REGION}.recall.ai/api/v1"
+
+active_bots = {}
+
+
+class BotJoinRequest(BaseModel):
+    meeting_url: str
+    meeting_title: str = "Live Meeting"
+    user_id: str = "demo-user"
+
+
+@app.post("/api/bot/join")
+async def join_meeting_with_bot(request: BotJoinRequest):
+    """Deploy Recall.ai bot to join a meeting"""
+    if not RECALL_API_KEY:
+        raise HTTPException(status_code=500, detail="Recall API key not configured in .env")
+
+    try:
+        payload = {
+            "meeting_url": request.meeting_url,
+            "bot_name": "QMEET AI Assistant",
+            "recording_config": {
+                "transcript": {
+                    "provider": {
+                        "meeting_captions": {}
+                    }
+                }
+            },
+            "automatic_leave": {
+                "waiting_room_timeout": 1200,
+                "noone_joined_timeout": 1200,
+                "everyone_left_timeout": 60
+            }
+        }
+
+        response = requests.post(
+            f"{RECALL_BASE_URL}/bot/",
+            headers={
+                "Authorization": f"Token {RECALL_API_KEY}",
+                "Content-Type": "application/json"
+            },
+            json=payload
+        )
+
+        print(f"[Deploy Bot] Status: {response.status_code}")
+        print(f"[Deploy Bot] Response: {response.text[:500]}")
+
+        if response.status_code not in (200, 201):
+            raise HTTPException(
+                status_code=response.status_code,
+                detail=f"Recall API error: {response.text}"
+            )
+
+        bot_data = response.json()
+        bot_id = bot_data["id"]
+
+        active_bots[bot_id] = {
+            "meeting_url": request.meeting_url,
+            "meeting_title": request.meeting_title,
+            "user_id": request.user_id
+        }
+
+        return {
+            "success": True,
+            "bot_id": bot_id,
+            "status": "joining",
+            "message": "Bot deployed! Turn ON captions in your meeting (press C in Google Meet).",
+            "recall_dashboard": f"https://{RECALL_REGION}.recall.ai/dashboard/explorer/bot/{bot_id}"
+        }
+
+    except requests.exceptions.RequestException as e:
+        raise HTTPException(status_code=500, detail=f"Failed to reach Recall: {str(e)}")
+
+
+@app.get("/api/bot/status/{bot_id}")
+async def get_bot_status(bot_id: str):
+    """Poll bot status and fetch transcript when ready"""
+    if not RECALL_API_KEY:
+        raise HTTPException(status_code=500, detail="Recall API key not configured")
+
+    try:
+        # Get bot details
+        bot_response = requests.get(
+            f"{RECALL_BASE_URL}/bot/{bot_id}",
+            headers={"Authorization": f"Token {RECALL_API_KEY}"}
+        )
+
+        if bot_response.status_code != 200:
+            raise HTTPException(status_code=bot_response.status_code, detail=bot_response.text)
+
+        bot_data = bot_response.json()
+        status_changes = bot_data.get("status_changes", [])
+        latest_status = status_changes[-1]["code"] if status_changes else "unknown"
+
+        print(f"[Bot {bot_id[:8]}] Status: {latest_status}")
+
+        result = {
+            "bot_id": bot_id,
+            "status": latest_status,
+            "meeting_url": bot_data.get("meeting_url"),
+            "transcript_ready": False,
+            "transcript": None,
+            "message": ""
+        }
+
+        # Check recordings
+        recordings = bot_data.get("recordings", [])
+        if not recordings:
+            result["message"] = "Bot is still in meeting, no recording yet"
+            return result
+
+        recording_id = recordings[0].get("id")
+        print(f"[Bot {bot_id[:8]}] Recording ID: {recording_id}")
+
+        # Get recording details
+        recording_response = requests.get(
+            f"{RECALL_BASE_URL}/recording/{recording_id}",
+            headers={"Authorization": f"Token {RECALL_API_KEY}"}
+        )
+
+        if recording_response.status_code != 200:
+            result["message"] = "Could not fetch recording"
+            return result
+
+        recording_data = recording_response.json()
+        media_shortcuts = recording_data.get("media_shortcuts", {})
+        transcript_info = media_shortcuts.get("transcript", {})
+        transcript_status = transcript_info.get("status", {}).get("code", "unknown")
+
+        print(f"[Bot {bot_id[:8]}] Transcript status: {transcript_status}")
+
+        if transcript_status != "done":
+            result["message"] = f"Transcript status: {transcript_status}"
+            return result
+
+        transcript_data = transcript_info.get("data", {})
+        download_url = transcript_data.get("download_url")
+
+        if not download_url:
+            result["message"] = "No download URL yet"
+            return result
+
+        # Download transcript
+        print(f"[Bot {bot_id[:8]}] Downloading transcript...")
+        transcript_download = requests.get(download_url)
+        if transcript_download.status_code != 200:
+            result["message"] = "Failed to download transcript"
+            return result
+
+        transcript_json = transcript_download.json()
+        print(f"[Bot {bot_id[:8]}] Got {len(transcript_json)} transcript entries")
+
+        # Convert to plain text
+        full_transcript = ""
+        for entry in transcript_json:
+            participant = entry.get("participant", {})
+            speaker = participant.get("name", "Speaker")
+            words = entry.get("words", [])
+            text = " ".join([w.get("text", "") for w in words])
+            if text.strip():
+                full_transcript += f"{speaker}: {text}\n"
+
+        result["transcript_ready"] = True
+        result["transcript"] = full_transcript.strip()
+        result["message"] = "Transcript ready!"
+
+        return result
+
+    except Exception as e:
+        print(f"[Bot {bot_id[:8]}] Error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/bot/debug/{bot_id}")
+async def debug_bot(bot_id: str):
+    """Full debug info for a bot"""
+    try:
+        bot_res = requests.get(
+            f"{RECALL_BASE_URL}/bot/{bot_id}",
+            headers={"Authorization": f"Token {RECALL_API_KEY}"}
+        )
+        bot_data = bot_res.json()
+
+        result = {"bot": bot_data}
+
+        recordings = bot_data.get("recordings", [])
+        if recordings:
+            rec_id = recordings[0]["id"]
+            rec_res = requests.get(
+                f"{RECALL_BASE_URL}/recording/{rec_id}",
+                headers={"Authorization": f"Token {RECALL_API_KEY}"}
+            )
+            result["recording"] = rec_res.json()
+
+        return result
+    except Exception as e:
+        return {"error": str(e)}
 
 groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 supabase: Client = create_client(
@@ -771,6 +974,8 @@ async def get_weekly_digest(user_id: str):
                 "Fridays showed highest team productivity"
             ]
         }
+
+        
         
         return digest
     except Exception as e:
