@@ -1,14 +1,14 @@
 ﻿import type { NextConfig } from "next"
 
+// Force redeploy - v2
 const nextConfig: NextConfig = {
   typescript: {
-    // ⚠️ Skip type checking during builds (for hackathon speed)
     ignoreBuildErrors: true,
   },
   eslint: {
-    // ⚠️ Skip ESLint during builds
     ignoreDuringBuilds: true,
   },
+  reactStrictMode: false,
 }
 
 export default nextConfig
